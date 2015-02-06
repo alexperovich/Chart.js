@@ -5,3 +5,10 @@ node_modules/*
 custom/*
 
 docs/index.md
+
+.vs
+obj
+bin
+
+*.user
+*.tmp
