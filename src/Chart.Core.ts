@@ -7,675 +7,34 @@
  * Released under the MIT license
  * https://github.com/nnnick/Chart.js/blob/master/LICENSE.md
  * 
- * Ported to Typescript by https://github.com/alexperovich
+ * Ported to Typescript by Alex Perovich
+ * https://github.com/alexperovich/Chart.js
  */
+/// <reference path="Chart.Helpers.ts"/>
 
+"use strict";
 module ChartJs {
-	"use strict";
-    export interface ILoopable<T> {
-        [index: number]: T;
-        length: number;
-    }
-
-    export interface ICloneable {
-        clone(): any;
-    }
-
-	export class Color {
-		constructor(fill: string, stroke: string) {
-			this.fill = fill;
-			this.stroke = stroke;
-		}
-		fill: string;
-		stroke: string;
+	export interface IElementOptions {
+		x?: number;
+		y?: number;
+		label?: string;
+		color?: Color;
+		showStroke?: boolean;
+		strokeWidth?: number;
+		display?: boolean;
 	}
 
-    export class Point {
-        constructor(x: number, y: number) {
-            this.x = x;
-            this.y = y;
-        }
-        x: number;
-        y: number;
-    }
-
-    export class AngleAndDistance {
-        constructor(angle: number, distance: number) {
-            this.angle = angle;
-            this.distance = distance;
-        }
-        angle: number;
-        distance: number;
-    }
-
-    export class SplineCurve {
-        constructor(inner: Point, outer: Point) {
-            this.inner = inner;
-            this.outer = outer;
-        }
-        inner: Point;
-        outer: Point;
-    }
-
-    export interface IDictionary<T> {
-        [key: string]: T;
-    }
-
-	export function cloneProperties(value: any): any {
-		var objClone = {};
-		for (var prop in value) {
-			if (value.hasOwnProperty(prop))
-				objClone[prop] = value[prop];
-		}
-		return objClone;
-	}
-
-	export function merge(options: Object, defaults: Object) {
-		for (var prop in defaults) {
-			if (!options.hasOwnProperty(prop)) {
-				options[prop] = defaults[prop];
-			}
-		}
-		return options;
-	}
-
-    export function each<T>(
-        dictionary: IDictionary<T>,
-        callback: (t: T, key?: string) => void): void;
-    export function each<T>(
-        loopable: ILoopable<T>,
-        callback: (t: T, index?: number) => void): void;
-    export function each<T, TParam>(
-        loopable: ILoopable<T>,
-        callback: (t: T, index?: number, param?: TParam) => void,
-		param: TParam): void;
-
-    export function each<T, TParam>(collection: any, callback: (t: T, index?: any, param?: TParam) => void, param?: TParam) {
-        if (collection.length) {
-            var i;
-            for (i = 0; i < collection.length; i++) {
-				callback(collection[i], i, param);
-            }
-        } else {
-            for (var item in collection) {
-		        if (collection.hasOwnProperty(item)) {
-					callback(collection[item], item, param);
-		        }
-	        }
-        }
-    }
-
-    export function where<T>(collection: ILoopable<T>, predicate: (value: T) => boolean): T[] {
-        var filtered: T[] = [];
-        each(collection,(item: T) => {
-            if (predicate(item)) {
-                filtered.push(item);
-            }
-        });
-        return filtered;
-    }
-
-    export function findNextWhere<T>(collection: ILoopable<T>, predicate: (value: T) => boolean, startIndex: number) {
-        if (!startIndex) {
-            startIndex = -1;
-        }
-        for (var i = startIndex + 1; i < collection.length; i++) {
-            var currentItem = collection[i];
-            if (predicate(currentItem)) {
-                return currentItem;
-            }
-        }
-        return null;
-    }
-
-    export function findPreviousWhere<T>(collection: ILoopable<T>, predicate: (value: T) => boolean, startIndex: number) {
-        if (!startIndex) {
-            startIndex = collection.length;
-        }
-        for (var i = startIndex - 1; i >= 0; i--) {
-            var currentItem = collection[i];
-            if (predicate(currentItem)) {
-                return currentItem;
-            }
-        }
-        return null;
-    }
-
-    var id = 0;
-    function uid() {
-        return "chart-" + id++;
-    }
-
-    export function warn(str: string) {
-        if (window.console && window.console.warn instanceof Function)
-            window.console.warn(str);
-    }
-
-    export function isNumber(n: any) {
-        return !isNaN(parseFloat(n)) && isFinite(n);
-    }
-
-    export function max(array: number[]): number {
-        return Math.max.apply(Math, array);
-    }
-
-    export function min(array: number[]): number {
-        return Math.min.apply(Math, array);
-    }
-
-    export function clamp(value: number, minValue: number, maxValue: number) {
-        return max([min([value, maxValue]), minValue]);
-    }
-
-    export function getDecimalPlaces(num: number) {
-        if (num % 1 !== 0 && isNumber(num)) {
-            return num.toString().split(".")[1].length;
-        } else {
-            return 0;
-        }
-    }
-
-    export function toRadians(degrees: number) {
-        return degrees * (Math.PI / 180);
-    }
-
-    export function getAngleFromPoint(centerPoint: Point, anglePoint: Point) {
-        var distanceFromXCenter = anglePoint.x - centerPoint.x,
-            distanceFromYCenter = anglePoint.y - centerPoint.y,
-            radialDistanceFromCenter = Math.sqrt(distanceFromXCenter * distanceFromXCenter + distanceFromYCenter * distanceFromYCenter);
-
-
-        var angle = Math.PI * 2 + Math.atan2(distanceFromYCenter, distanceFromXCenter);
-
-        //If the segment is in the top left quadrant, we need to add another rotation to the angle
-        if (distanceFromXCenter < 0 && distanceFromYCenter < 0) {
-            angle += Math.PI * 2;
-        }
-
-        return {
-            angle: angle,
-            distance: radialDistanceFromCenter
-        };
-    }
-
-    export function aliasPixel(pixelWidth: number) {
-        return (pixelWidth % 2 === 0) ? 0 : 0.5;
-    }
-
-    export function splineCurve(first: Point, middle: Point, after: Point, t: number): SplineCurve {
-        //Props to Rob Spencer at scaled innovation for his post on splining between points
-        //http://scaledinnovation.com/analytics/splines/aboutSplines.html
-        var d01 = Math.sqrt(Math.pow(middle.x - first.x, 2) + Math.pow(middle.y - first.y, 2)),
-            d12 = Math.sqrt(Math.pow(after.x - middle.x, 2) + Math.pow(after.y - middle.y, 2)),
-            fa = t * d01 / (d01 + d12),// scaling factor for triangle Ta
-            fb = t * d12 / (d01 + d12);
-        return {
-            inner: {
-                x: middle.x - fa * (after.x - first.x),
-                y: middle.y - fa * (after.y - first.y)
-            },
-            outer: {
-                x: middle.x + fb * (after.x - first.x),
-                y: middle.y + fb * (after.y - first.y)
-            }
-        };
-    }
-
-    export function calculateOrderOfMagnitude(value: number) {
-        return Math.floor(Math.log(value) / Math.LN10);
-    }
-
-    export class ScaleRange {
-        constructor(steps: number, stepValue: number, min: number, max: number) {
-            this.steps = steps;
-            this.stepValue = stepValue;
-            this.min = min;
-            this.max = max;
-        }
-        steps: number;
-        stepValue: number;
-        min: number;
-        max: number;
-    }
-
-    export function calculateScaleRange(values: number[], drawingSize: number, textSize: number, startFromZero: boolean, integersOnly: boolean): ScaleRange {
-
-        //Set a minimum step of two - a point at the top of the graph, and a point at the base
-        var minSteps = 2,
-            maxSteps = Math.floor(drawingSize / (textSize * 1.5)),
-            skipFitting = (minSteps >= maxSteps);
-
-        var maxValue = max(values),
-            minValue = min(values);
-
-        // We need some degree of seperation here to calculate the scales if all the values are the same
-        // Adding/minusing 0.5 will give us a range of 1.
-        if (maxValue === minValue) {
-            maxValue += 0.5;
-            // So we don't end up with a graph with a negative start value if we've said always start from zero
-            if (minValue >= 0.5 && !startFromZero) {
-                minValue -= 0.5;
-            }
-            else {
-                // Make up a whole number above the values
-                maxValue += 0.5;
-            }
-        }
-
-        var valueRange = Math.abs(maxValue - minValue),
-            rangeOrderOfMagnitude = calculateOrderOfMagnitude(valueRange),
-            graphMax = Math.ceil(maxValue / (1 * Math.pow(10, rangeOrderOfMagnitude))) * Math.pow(10, rangeOrderOfMagnitude),
-            graphMin = (startFromZero) ? 0 : Math.floor(minValue / (1 * Math.pow(10, rangeOrderOfMagnitude))) * Math.pow(10, rangeOrderOfMagnitude),
-            graphRange = graphMax - graphMin,
-            stepValue = Math.pow(10, rangeOrderOfMagnitude),
-            numberOfSteps = Math.round(graphRange / stepValue);
-
-        //If we have more space on the graph we'll use it to give more definition to the data
-        while ((numberOfSteps > maxSteps || (numberOfSteps * 2) < maxSteps) && !skipFitting) {
-            if (numberOfSteps > maxSteps) {
-                stepValue *= 2;
-                numberOfSteps = Math.round(graphRange / stepValue);
-                // Don't ever deal with a decimal number of steps - cancel fitting and just use the minimum number of steps.
-                if (numberOfSteps % 1 !== 0) {
-                    skipFitting = true;
-                }
-            }
-            //We can fit in double the amount of scale points on the scale
-            else {
-                //If user has declared ints only, and the step value isn't a decimal
-                if (integersOnly && rangeOrderOfMagnitude >= 0) {
-                    //If the user has said integers only, we need to check that making the scale more granular wouldn't make it a float
-                    if (stepValue / 2 % 1 === 0) {
-                        stepValue /= 2;
-                        numberOfSteps = Math.round(graphRange / stepValue);
-                    }
-                    //If it would make it a float break out of the loop
-                    else {
-                        break;
-                    }
-                }
-                //If the scale doesn't have to be an int, make the scale more granular anyway.
-                else {
-                    stepValue /= 2;
-                    numberOfSteps = Math.round(graphRange / stepValue);
-                }
-
-            }
-        }
-
-        if (skipFitting) {
-            numberOfSteps = minSteps;
-            stepValue = graphRange / numberOfSteps;
-        }
-
-        return {
-            steps: numberOfSteps,
-            stepValue: stepValue,
-            min: graphMin,
-            max: graphMin + (numberOfSteps * stepValue)
-        };
-    }
-
-    export function template(func: (values: Object) => string, values: Object): string;
-    export function template(str: string, values: Object): string;
-
-    //Templating methods
-    //Javascript micro templating by John Resig - source at http://ejohn.org/blog/javascript-micro-templating/
-    export function template(tmpl: any, values: Object): string {
-
-        // If templateString is function rather than string-template - call the function for valuesObject
-
-        if (tmpl instanceof Function) {
-            return tmpl(values);
-        }
-
-        var cache = {};
-        return ((str, data) => {
-            // Figure out if we're getting a template, or if we need to
-            // load the template - and be sure to cache the result.
-            var fn = !/\W/.test(str) ?
-                cache[str] = cache[str] :
-
-                // Generate a reusable function that will serve as a template
-                // generator (and which will be cached).
-                new Function("obj",
-                    "var p=[],print=function(){p.push.apply(p,arguments);};" +
-
-                    // Introduce the data as local variables using with(){}
-                    "with(obj){p.push('" +
-
-                    // Convert the template into pure JavaScript
-                    str
-                        .replace(/[\r\t\n]/g, " ")
-                        .split("<%").join("\t")
-                        .replace(/((^|%>)[^\t]*)'/g, "$1\r")
-                        .replace(/\t=(.*?)%>/g, "',$1,'")
-                        .split("\t").join("');")
-                        .split("%>").join("p.push('")
-                        .split("\r").join("\\'") +
-                    "');}return p.join('');"
-                    );
-
-            // Provide some basic currying to the user
-            return data ? fn(data) : fn;
-        })(tmpl, values);
-
-    }
-
-    export function generateLabels(tmpl: string, numberOfSteps: number, graphMin: number, stepValue: number) {
-        var labelsArray = new Array(numberOfSteps);
-        if (tmpl) {
-            each(labelsArray,(val, index) => {
-                labelsArray[index] = template(tmpl, { value: (graphMin + (stepValue * (index + 1))) });
-            });
-        }
-        return labelsArray;
-    }
-
-    export class Statics {
-        static easingEffects: IDictionary<(t: number) => number>;
-        private static ctor = (() => {
-            Statics.easingEffects = {};
-            Statics.easingEffects["linear"] = (t) => t;
-
-            Statics.easingEffects["easeInQuad"] = (t) => t * t;
-            Statics.easingEffects["easeOutQuad"] = (t) => -1 * t * (t - 2);
-            Statics.easingEffects["easeInOutQuad"] = (t) => {
-                if ((t /= 1 / 2) < 1) return 1 / 2 * t * t;
-                return -1 / 2 * ((--t) * (t - 2) - 1);
-            }
-
-            Statics.easingEffects["easeInCubic"] = (t) => t * t * t;
-            Statics.easingEffects["easeOutCubic"] = (t) => 1 * ((t = t / 1 - 1) * t * t + 1);
-            Statics.easingEffects["easeInOutCubic"] = (t) => {
-                if ((t /= 1 / 2) < 1) return 1 / 2 * t * t * t;
-                return 1 / 2 * ((t -= 2) * t * t + 2);
-            };
-
-            Statics.easingEffects["easeInQuart"] = (t) => t * t * t * t;
-            Statics.easingEffects["easeOutQuart"] = (t) => -1 * ((t = t / 1 - 1) * t * t * t - 1);
-            Statics.easingEffects["easeInOutQuart"] = (t) => {
-                if ((t /= 1 / 2) < 1) return 1 / 2 * t * t * t * t;
-                return -1 / 2 * ((t -= 2) * t * t * t - 2);
-            };
-
-            Statics.easingEffects["easeInQuint"] = (t) => 1 * (t /= 1) * t * t * t * t;
-            Statics.easingEffects["easeOutQuint"] = (t) => 1 * ((t = t / 1 - 1) * t * t * t * t + 1);
-            Statics.easingEffects["easeInOutQuint"] = (t) => {
-                if ((t /= 1 / 2) < 1) return 1 / 2 * t * t * t * t * t;
-                return 1 / 2 * ((t -= 2) * t * t * t * t + 2);
-            };
-
-            Statics.easingEffects["easeInSine"] = (t) => -1 * Math.cos(t / 1 * (Math.PI / 2)) + 1;
-            Statics.easingEffects["easeOutSine"] = (t) => 1 * Math.sin(t / 1 * (Math.PI / 2));
-            Statics.easingEffects["easeInOutSine"] = (t) => {
-                return -1 / 2 * (Math.cos(Math.PI * t / 1) - 1);
-            };
-
-            Statics.easingEffects["easeInExpo"] = (t) => (t === 0) ? 1 : 1 * Math.pow(2, 10 * (t / 1 - 1));
-            Statics.easingEffects["easeOutExpo"] = (t) => (t === 1) ? 1 : 1 * (-Math.pow(2, -10 * t / 1) + 1);
-            Statics.easingEffects["easeInOutExpo"] = (t) => {
-                if (t === 0) return 0;
-                if (t === 1) return 1;
-                if ((t /= 1 / 2) < 1) return 1 / 2 * Math.pow(2, 10 * (t - 1));
-                return 1 / 2 * (-Math.pow(2, -10 * --t) + 2);
-            };
-
-            Statics.easingEffects["easeInCirc"] = (t) => {
-                if (t >= 1) return t;
-                return -1 * (Math.sqrt(1 - (t /= 1) * t) - 1);
-            };
-            Statics.easingEffects["easeOutCirc"] = (t) => {
-                return 1 * Math.sqrt(1 - (t = t / 1 - 1) * t);
-            };
-            Statics.easingEffects["easeInOutCirc"] = (t) => {
-                if ((t /= 1 / 2) < 1) return -1 / 2 * (Math.sqrt(1 - t * t) - 1);
-                return 1 / 2 * (Math.sqrt(1 - (t -= 2) * t) + 1);
-            };
-
-            Statics.easingEffects["easeInElastic"] = (t) => {
-                var s: number;
-	            var a = 1;
-                if (t === 0) return 0;
-                if ((t /= 1) === 1) return 1;
-                var p = 1 * 0.3;
-                if (a < Math.abs(1)) {
-                    a = 1;
-                    s = p / 4;
-                } else s = p / (2 * Math.PI) * Math.asin(1 / a);
-                return -(a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t * 1 - s) * (2 * Math.PI) / p));
-            };
-            Statics.easingEffects["easeOutElastic"] = (t) => {
-                var s: number;
-	            var a = 1;
-                if (t === 0) return 0;
-                if ((t /= 1) === 1) return 1;
-                var p = 1 * 0.3;
-                if (a < Math.abs(1)) {
-                    a = 1;
-                    s = p / 4;
-                } else s = p / (2 * Math.PI) * Math.asin(1 / a);
-                return a * Math.pow(2, -10 * t) * Math.sin((t * 1 - s) * (2 * Math.PI) / p) + 1;
-            }
-            Statics.easingEffects["easeInOutElastic"] = (t) => {
-                var s: number;
-	            var a = 1;
-                if (t === 0) return 0;
-                if ((t /= 1 / 2) === 2) return 1;
-                var p = 1 * (0.3 * 1.5);
-                if (a < Math.abs(1)) {
-                    a = 1;
-                    s = p / 4;
-                } else s = p / (2 * Math.PI) * Math.asin(1 / a);
-                if (t < 1) return -0.5 * (a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t * 1 - s) * (2 * Math.PI) / p));
-                return a * Math.pow(2, -10 * (t -= 1)) * Math.sin((t * 1 - s) * (2 * Math.PI) / p) * 0.5 + 1;
-            };
-
-            Statics.easingEffects["easeInBack"] = (t) => {
-                var s = 1.70158;
-                return 1 * (t /= 1) * t * ((s + 1) * t - s);
-            };
-            Statics.easingEffects["easeOutBack"] = (t) => {
-                var s = 1.70158;
-                return 1 * ((t = t / 1 - 1) * t * ((s + 1) * t + s) + 1);
-            };
-            Statics.easingEffects["easeInOutBack"] = (t) => {
-                var s = 1.70158;
-                if ((t /= 1 / 2) < 1) return 1 / 2 * (t * t * (((s *= (1.525)) + 1) * t - s));
-                return 1 / 2 * ((t -= 2) * t * (((s *= (1.525)) + 1) * t + s) + 2);
-            };
-
-            Statics.easingEffects["easeInBounce"] = (t) => {
-                return 1 - Statics.easingEffects["easeOutBounce"](1 - t);
-            }
-            Statics.easingEffects["easeOutBounce"] = (t) => {
-                if ((t /= 1) < (1 / 2.75)) {
-                    return 1 * (7.5625 * t * t);
-                } else if (t < (2 / 2.75)) {
-                    return 1 * (7.5625 * (t -= (1.5 / 2.75)) * t + 0.75);
-                } else if (t < (2.5 / 2.75)) {
-                    return 1 * (7.5625 * (t -= (2.25 / 2.75)) * t + 0.9375);
-                } else {
-                    return 1 * (7.5625 * (t -= (2.625 / 2.75)) * t + 0.984375);
-                }
-            };
-            Statics.easingEffects["easeInOutBounce"] = (t) => {
-                if (t < 1 / 2) return Statics.easingEffects["easeInBounce"](t * 2) * 0.5;
-                return Statics.easingEffects["easeOutBounce"](t * 2 - 1) * 0.5 + 1 * 0.5;
-            };
-	        return 0;
-        })();
-    }
-
-    export function requestAnimFrame(callback: FrameRequestCallback) {
-        return (() => {
-            return window.requestAnimationFrame ||
-                (<any>window).webkitRequestAnimationFrame ||
-                (<any>window).mozRequestAnimationFrame ||
-                (<any>window).oRequestAnimationFrame ||
-                window.msRequestAnimationFrame ||
-                (cb => window.setTimeout(cb, 1000 / 60));
-        })()(callback);
-    }
-
-    export function cancelAnimFrame(handle: number) {
-        (() => {
-            return window.cancelAnimationFrame ||
-                (<any>window).webkitCancelAnimationFrame ||
-                (<any>window).mozCancelAnimationFrame ||
-                (<any>window).oCancelAnimationFrame ||
-                (<any>window).msCancelAnimationFrame ||
-                window.clearTimeout;
-        })()(handle);
-    }
-
-    export function animationLoop(
-        callback: (easeDecimal: number, stepDecimal: number, currentStep: number) => void,
-        totalSteps: number,
-        easingString: string,
-        onProgress: (easeDecimal: number, stepDecimal: number) => void,
-        onComplete: () => void,
-        chartInstance: ChartBase) {
-        var currentStep = 0,
-            easingFunction = Statics.easingEffects[easingString] || Statics.easingEffects["linear"];
-
-        var animationFrame = () => {
-            currentStep++;
-            var stepDecimal = currentStep / totalSteps;
-            var easeDecimal = easingFunction(stepDecimal);
-
-            callback.call(chartInstance, easeDecimal, stepDecimal, currentStep);
-            onProgress.call(chartInstance, easeDecimal, stepDecimal);
-            if (currentStep < totalSteps) {
-                chartInstance.animationFrame = requestAnimFrame(animationFrame);
-            } else {
-                onComplete.apply(chartInstance);
-            }
-        };
-        chartInstance.animationFrame = requestAnimFrame(animationFrame);
-    }
-
-    export function getRelativePosition(evt: PointerEvent): Point {
-	    var mouseX, mouseY;
-        var e = (<any>evt).originalEvent || evt;
-        var canvas = <HTMLCanvasElement>(evt.currentTarget || evt.srcElement);
-	    var boundingRect = canvas.getBoundingClientRect();
-
-		if (e.touches){
-			mouseX = e.touches[0].clientX - boundingRect.left;
-			mouseY = e.touches[0].clientY - boundingRect.top;
-
-		}
-		else{
-			mouseX = e.clientX - boundingRect.left;
-			mouseY = e.clientY - boundingRect.top;
-		}
-
-		return {
-			x : mouseX,
-			y : mouseY
-		};
-    }
-
-    export function addEvent(node: HTMLElement, eventType: string, handler: EventListener) {
-        if (node.addEventListener) {
-            node.addEventListener(eventType, handler, false);
-        } else if (node.attachEvent) {
-            node.attachEvent("on" + eventType, handler);
-        } else {
-            node["on" + eventType] = handler;
-        }
-    }
-
-    export function removeEvent(node: HTMLElement, eventType: string, handler: EventListener) {
-        if (node.removeEventListener) {
-            node.removeEventListener(eventType, handler, false);
-        } else if (node.detachEvent) {
-            node.detachEvent(eventType, handler);
-        } else {
-            node["on" + eventType] = () => {};
-        }
-    }
-
-    export function bindEvents(chartInstance: ChartBase, events: string[], handler: EventListener) {
-        if (!chartInstance.events) chartInstance.events = {};
-
-        each(events, (eventName) => {
-            chartInstance.events[eventName] = () => {
-                handler.apply(chartInstance, arguments);
-            };
-            addEvent(chartInstance.canvas, eventName, chartInstance.events[eventName]);
-        });
-    }
-
-    export function unbindEvents(chartInstance: ChartBase, events: IDictionary<() => void>) {
-        each(events, (handler, eventName) => {
-            removeEvent(chartInstance.canvas, eventName, handler);
-        });
-    }
-
-    export function getMaximumWidth(node: HTMLElement) {
-        var container = node.parentElement;
-        return container.clientWidth;
-    }
-
-    export function getMaximumHeight(node: HTMLElement) {
-        var container = node.parentElement;
-        return container.clientHeight;
-    }
-
-    export function retinaScale(chart: ChartBase) {
-        var ctx = chart.ctx,
-            width = chart.canvas.width,
-            height = chart.canvas.height;
-        if (window.devicePixelRatio) {
-            ctx.canvas.style.width = width + "px";
-            ctx.canvas.style.height = height + "px";
-            ctx.canvas.height = height * window.devicePixelRatio;
-            ctx.canvas.width = width * window.devicePixelRatio;
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-        }
-    }
-
-    export function clear(chart: ChartBase) {
-        chart.ctx.clearRect(0, 0, chart.width, chart.height);
-    }
-
-    export function fontString(pixelSize: number, fontStyle: string, fontFamily: string) {
-        return fontStyle + " " + pixelSize + "px " + fontFamily;
-    }
-
-    export function longestText(ctx: CanvasRenderingContext2D, font: string, strings: string[]) {
-        ctx.font = font;
-        var longest = 0;
-        each(strings, s => {
-            var textWidth = ctx.measureText(s).width;
-            longest = (textWidth > longest) ? textWidth : longest;
-        });
-        return longest;
-    }
-
-    export function drawRoundedRectangle(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-		ctx.beginPath();
-		ctx.moveTo(x + radius, y);
-		ctx.lineTo(x + width - radius, y);
-		ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-		ctx.lineTo(x + width, y + height - radius);
-		ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-		ctx.lineTo(x + radius, y + height);
-		ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-		ctx.lineTo(x, y + radius);
-		ctx.quadraticCurveTo(x, y, x + radius, y);
-		ctx.closePath();
-    }
-
-	export class Element implements ICloneable {
-
-		constructor(ctx: CanvasRenderingContext2D, options: any) {
-			this.ctx = ctx;
+	export class Element<T> {
+		constructor(chart: ChartHandle, options: IElementOptions) {
+			this.ctx = chart.ctx;
+			this.chart = chart;
 			this.label = options.label;
-			this.strokeColor = options.strokeColor;
-			this.fillColor = options.fillColor;
+			this.color = options.color;
+			this.showStroke = options.showStroke;
+			this.strokeWidth = options.strokeWidth;
+			this.display = options.display;
+			this.x = options.x;
+			this.y = options.y;
 			this.initialize.apply(this, arguments);
 			this.save();
 		}
@@ -738,20 +97,20 @@ module ChartJs {
 		}
 
 		clone() {
-			return <Element>cloneProperties(this);
+			return <Element<T>>cloneProperties(this);
 		}
-		label: string;
+
 		_saved: any;
 		x: number;
 		y: number;
-		value: number;
+		value: T;
 		ctx: CanvasRenderingContext2D;
-		strokeColor: string;
+		chart: ChartHandle;
+		color: Color;
 		strokeWidth: number;
-		fillColor: string;
 		showStroke: boolean;
-		chart: ChartBase;
 		display: boolean;
+		label: string;
 
 		tooltipPosition(): Point {
 			return {
@@ -761,9 +120,16 @@ module ChartJs {
 		}
 	}
 
-	export class ChartPoint extends Element {
-		constructor(ctx: CanvasRenderingContext2D, options: any) {
-			super(ctx, options);
+	export interface IChartPointOptions extends IElementOptions {
+		radius?: number;
+		hitDetectionRadius?: number;
+	}
+
+	export class ChartPoint<T> extends Element<T> {
+		constructor(chart: ChartHandle, options: IChartPointOptions) {
+			this.radius = options.radius;
+			this.hitDetectionRadius = options.hitDetectionRadius;
+			super(chart, options);
 			return;
 		}
 		inRange(chartX: number, chartY: number) {
@@ -779,10 +145,10 @@ module ChartJs {
 				ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
 				ctx.closePath();
 
-				ctx.strokeStyle = this.strokeColor;
+				ctx.strokeStyle = this.color.stroke;
 				ctx.lineWidth = this.strokeWidth;
 
-				ctx.fillStyle = this.fillColor;
+				ctx.fillStyle = this.color.fill;
 
 				ctx.fill();
 				ctx.stroke();
@@ -794,9 +160,20 @@ module ChartJs {
 		hitDetectionRadius: number;
 	}
 
-	export class Arc extends Element {
-		constructor(ctx: CanvasRenderingContext2D, options: any) {
-			super(ctx, options);
+	export interface IArcOptions extends IElementOptions {
+		startAngle?: number;
+		endAngle?: number;
+		innerRadius?: number;
+		outerRadius?: number;
+	}
+
+	export class Arc<T> extends Element<T> {
+		constructor(chart: ChartHandle, options: IArcOptions) {
+			this.startAngle = options.startAngle;
+			this.endAngle = options.endAngle;
+			this.innerRadius = options.innerRadius;
+			this.outerRadius = options.outerRadius;
+			super(chart, options);
 		}
 
 		inRange(chartX, chartY) {
@@ -830,10 +207,10 @@ module ChartJs {
 			ctx.arc(this.x, this.y, this.innerRadius, this.endAngle, this.startAngle, true);
 
 			ctx.closePath();
-			ctx.strokeStyle = this.strokeColor;
+			ctx.strokeStyle = this.color.stroke;
 			ctx.lineWidth = this.strokeWidth;
 
-			ctx.fillStyle = this.fillColor;
+			ctx.fillStyle = this.color.fill;
 
 			ctx.fill();
 			ctx.lineJoin = "bevel";
@@ -849,7 +226,18 @@ module ChartJs {
 		outerRadius: number;
 	}
 
-	export class Rectangle extends Element {
+	export interface IRectangleOptions extends IElementOptions {
+		width?: number;
+		base?: number;
+	}
+
+	export class Rectangle<T> extends Element<T> {
+		constructor(chart: ChartHandle, options: IRectangleOptions) {
+			this.width = options.width;
+			this.base = options.base;
+			super(chart, options);
+		}
+
 		draw() {
 			var ctx = this.ctx,
 				halfWidth = this.width / 2,
@@ -868,8 +256,8 @@ module ChartJs {
 
 			ctx.beginPath();
 
-			ctx.fillStyle = this.fillColor;
-			ctx.strokeStyle = this.strokeColor;
+			ctx.fillStyle = this.color.fill;
+			ctx.strokeStyle = this.color.stroke;
 			ctx.lineWidth = this.strokeWidth;
 
 			// It'd be nice to keep this class totally generic to any rectangle
@@ -896,33 +284,55 @@ module ChartJs {
 		base: number;
 	}
 
-	export class TextElement extends Element {
-		constructor(ctx: CanvasRenderingContext2D, options: Object) {
-			super(ctx, options);
+	export interface ITextElementOptions extends IElementOptions {
+		font?: Font;
+		text?: string;
+		textColor?: string;
+	}
+
+	export class TextElement<T> extends Element<T> {
+		constructor(chart: ChartHandle, options: ITextElementOptions) {
+			this.font = options.font;
+			this.text = options.text;
+			this.textColor = options.textColor;
+			super(chart, options);
 			return;
 		}
-		fontSize: number;
-		fontStyle: string;
-		fontFamily: string;
-		font: string;
+		font: Font;
 		text: string;
 		textColor: string;
 	}
 
-	export class Tooltip extends TextElement {
-		constructor(ctx: CanvasRenderingContext2D, options: Object) {
-			super(ctx, options);
+	export interface IToolTipOptions extends ITextElementOptions {
+		caretPadding?: number;
+		caretHeight?: number;
+		cornerRadius?: number;
+		xAlign?: string;
+		yAlign?: string;
+		xPadding?: number;
+		yPadding?: number;
+	}
+
+	export class ToolTip<T> extends TextElement<T> {
+		constructor(chart: ChartHandle, options: IToolTipOptions) {
+			this.caretPadding = options.caretPadding;
+			this.caretHeight = options.caretHeight;
+			this.cornerRadius = options.cornerRadius;
+			this.xAlign = options.xAlign;
+			this.yAlign = options.yAlign;
+			this.xPadding = options.xPadding;
+			this.yPadding = options.yPadding;
+			super(chart, options);
 			return;
 		}
 
 		initialize() {
-			this.font = fontString(this.fontSize,this.fontStyle,this.fontFamily);
 		}
 
 		draw() {
 			var ctx = this.ctx;
 
-			ctx.font = this.font;
+			ctx.font = this.font.toString();
 
 			this.xAlign = "center";
 			this.yAlign = "above";
@@ -931,7 +341,7 @@ module ChartJs {
 			var caretPadding = this.caretPadding = 2;
 
 			var tooltipWidth = ctx.measureText(this.text).width + 2*this.xPadding,
-				tooltipRectHeight = this.fontSize + 2*this.yPadding,
+				tooltipRectHeight = this.font.size + 2*this.yPadding,
 				tooltipHeight = tooltipRectHeight + this.caretHeight + caretPadding;
 
 			if (this.x + tooltipWidth/2 >this.chart.width){
@@ -948,7 +358,7 @@ module ChartJs {
 			var tooltipX = this.x - tooltipWidth/2,
 				tooltipY = this.y - tooltipHeight;
 
-			ctx.fillStyle = this.fillColor;
+			ctx.fillStyle = this.color.fill;
 
 			// Custom Tooltips
 			if(this.custom){
@@ -1006,31 +416,55 @@ module ChartJs {
 		yAlign: string;
 		xPadding: number;
 		yPadding: number;
-		custom: (tt: Tooltip) => void;
+		custom: (tt: ToolTip<T>) => void;
 	}
 
-	export class MultiToolTip extends TextElement {
-		constructor(ctx: CanvasRenderingContext2D, options: Object) {
-			super(ctx, options);
+	export interface IMultiToolTipOptions<T> extends ITextElementOptions {
+		titleFont?: Font;
+		width?: number;
+		height?: number;
+		yPadding?: number;
+		xPadding?: number;
+		labels?: string[];
+		title?: string;
+		titleTextColor?: string;
+		xOffset?: number;
+		custom?: (tt: MultiToolTip<T>) => void;
+		cornerRadius?: number;
+		legendColorBackground?: string;
+		legendColors?: Color[];
+	}
+
+	export class MultiToolTip<T> extends TextElement<T> {
+		constructor(chart: ChartHandle, options: IMultiToolTipOptions<T>) {
+			this.titleFont = options.titleFont;
+			this.width = options.width;
+			this.height = options.height;
+			this.yPadding = options.yPadding;
+			this.xPadding = options.xPadding;
+			this.labels = options.labels;
+			this.title = options.title;
+			this.titleTextColor = options.titleTextColor;
+			this.xOffset = options.xOffset;
+			this.custom = options.custom;
+			this.cornerRadius = options.cornerRadius;
+			this.legendColorBackground = options.legendColorBackground;
+			this.legendColors = options.legendColors;
+			super(chart, options);
 			return;
 		}
 
 		initialize() {
-			this.font = fontString(this.fontSize, this.fontStyle, this.fontFamily);
+			this.height = (this.labels.length * this.font.size) + ((this.labels.length - 1) * (this.font.size / 2)) + (this.yPadding * 2) + this.titleFont.size * 1.5;
 
-			this.titleFont = fontString(this.titleFontSize, this.titleFontStyle, this.titleFontFamily);
-
-			this.height = (this.labels.length * this.fontSize) + ((this.labels.length - 1) * (this.fontSize / 2)) + (this.yPadding * 2) + this.titleFontSize * 1.5;
-
-			this.ctx.font = this.titleFont;
+			this.ctx.font = this.titleFont.toString();
 
 			var titleWidth = this.ctx.measureText(this.title).width,
 				//Label has a legend square as well so account for this.
-				labelWidth = longestText(this.ctx, this.font, this.labels) + this.fontSize + 3,
+				labelWidth = longestText(this.ctx, this.font, this.labels) + this.font.size + 3,
 				longestTextWidth = max([labelWidth, titleWidth]);
 
 			this.width = longestTextWidth + (this.xPadding * 2);
-
 
 			var halfHeight = this.height / 2;
 
@@ -1055,9 +489,9 @@ module ChartJs {
 				afterTitleIndex = index - 1;
 
 			if (index === 0) {
-				return baseLineHeight + this.titleFontSize / 2;
+				return baseLineHeight + this.titleFont.size / 2;
 			} else {
-				return baseLineHeight + ((this.fontSize * 1.5 * afterTitleIndex) + this.fontSize / 2) + this.titleFontSize * 1.5;
+				return baseLineHeight + ((this.font.size * 1.5 * afterTitleIndex) + this.font.size / 2) + this.titleFont.size * 1.5;
 			}
 		}
 
@@ -1067,41 +501,38 @@ module ChartJs {
 			} else {
 				var ctx = this.ctx;
 				drawRoundedRectangle(ctx, this.x, this.y - this.height / 2, this.width, this.height, this.cornerRadius);
-				ctx.fillStyle = this.fillColor;
+				ctx.fillStyle = this.color.fill;
 				ctx.fill();
 				ctx.closePath();
 
 				ctx.textAlign = "left";
 				ctx.textBaseline = "middle";
 				ctx.fillStyle = this.titleTextColor;
-				ctx.font = this.titleFont;
+				ctx.font = this.titleFont.toString();
 
 				ctx.fillText(this.title, this.x + this.xPadding, this.getLineHeight(0));
 
-				ctx.font = this.font;
+				ctx.font = this.font.toString();
 				each(this.labels, (label: string, index: number) => {
 					ctx.fillStyle = this.textColor;
-					ctx.fillText(label, this.x + this.xPadding + this.fontSize + 3, this.getLineHeight(index + 1));
+					ctx.fillText(label, this.x + this.xPadding + this.font.size + 3, this.getLineHeight(index + 1));
 
 					//A bit gnarly, but clearing this rectangle breaks when using explorercanvas (clears whole canvas)
 					//ctx.clearRect(this.x + this.xPadding, this.getLineHeight(index + 1) - this.fontSize/2, this.fontSize, this.fontSize);
 					//Instead we'll make a white filled block to put the legendColour palette over.
 
 					ctx.fillStyle = this.legendColorBackground;
-					ctx.fillRect(this.x + this.xPadding, this.getLineHeight(index + 1) - this.fontSize / 2, this.fontSize, this.fontSize);
+					ctx.fillRect(this.x + this.xPadding, this.getLineHeight(index + 1) - this.font.size / 2, this.font.size, this.font.size);
 
 					ctx.fillStyle = this.legendColors[index].fill;
-					ctx.fillRect(this.x + this.xPadding, this.getLineHeight(index + 1) - this.fontSize / 2, this.fontSize, this.fontSize);
+					ctx.fillRect(this.x + this.xPadding, this.getLineHeight(index + 1) - this.font.size / 2, this.font.size, this.font.size);
 
 
 				});
 			}
 		}
 
-		titleFontSize: number;
-		titleFontStyle: string;
-		titleFontFamily: string;
-		titleFont: string;
+		titleFont: Font;
 		width: number;
 		height: number;
 		yPadding: number;
@@ -1110,7 +541,7 @@ module ChartJs {
 		title: string;
 		titleTextColor: string;
 		xOffset: number;
-		custom: (tt: MultiToolTip) => void;
+		custom: (tt: MultiToolTip<T>) => void;
 		cornerRadius: number;
 		legendColorBackground: string;
 		legendColors: Color[];
@@ -1121,12 +552,9 @@ module ChartJs {
 		height: number;
 		width: number;
 		textColor: string;
-		fontSize: number;
-		fontStyle: string;
-		fontFamily: string;
 		valuesCount: number;
 		xLabels: string[];
-		font: string;
+		font: Font;
 		lineWidth: number;
 		lineColor: string;
 		showHorizontalLines: boolean;
@@ -1138,15 +566,12 @@ module ChartJs {
 		display: boolean;
 	}
 
-	export class Scale extends Element {
-		constructor(ctx: CanvasRenderingContext2D, options: IScaleOptions) {
+	export class Scale extends Element<void> {
+		constructor(chart: ChartHandle, options: IScaleOptions) {
 			this.templateString = options.templateString;
 			this.height = options.height;
 			this.width = options.width;
 			this.textColor = options.textColor;
-			this.fontSize = options.fontSize;
-			this.fontStyle = options.fontStyle;
-			this.fontFamily = options.fontFamily;
 			this.xLabels = options.xLabels;
 			this.font = options.font;
 			this.lineWidth = options.lineWidth;
@@ -1159,7 +584,7 @@ module ChartJs {
 			this.showLabels = options.showLabels;
 			this.display = options.display;
 			this.valuesCount = options.valuesCount;
-			super(ctx, options);
+			super(chart, options);
 		}
 
 		initialize() {
@@ -1193,8 +618,8 @@ module ChartJs {
 			// First we need the width of the yLabels, assuming the xLabels aren't rotated
 
 			// To do that we need the base line at the top and base of the chart, assuming there is no x label rotation
-			this.startPoint = (this.display) ? this.fontSize : 0;
-			this.endPoint = (this.display) ? this.height - (this.fontSize * 1.5) - 5 : this.height; // -5 to pad labels
+			this.startPoint = (this.display) ? this.font.size : 0;
+			this.endPoint = (this.display) ? this.height - (this.font.size * 1.5) - 5 : this.height; // -5 to pad labels
 
 			// Apply padding settings to the start and end point.
 			this.startPoint += this.padding;
@@ -1240,7 +665,7 @@ module ChartJs {
 			//Get the width of each grid by calculating the difference
 			//between x offsets between 0 and 1.
 
-			this.ctx.font = this.font;
+			this.ctx.font = this.font.toString();
 
 			var firstWidth = this.ctx.measureText(this.xLabels[0]).width,
 				lastWidth = this.ctx.measureText(this.xLabels[this.xLabels.length - 1]).width,
@@ -1268,10 +693,10 @@ module ChartJs {
 					lastRotated = cosRotation * lastWidth;
 
 					// We're right aligning the text now.
-					if (firstRotated + this.fontSize / 2 > this.yLabelWidth + 8) {
-						this.xScalePaddingLeft = firstRotated + this.fontSize / 2;
+					if (firstRotated + this.font.size / 2 > this.yLabelWidth + 8) {
+						this.xScalePaddingLeft = firstRotated + this.font.size / 2;
 					}
-					this.xScalePaddingRight = this.fontSize / 2;
+					this.xScalePaddingRight = this.font.size / 2;
 
 
 					this.xLabelRotation++;
@@ -1328,7 +753,7 @@ module ChartJs {
 				xStart = Math.round(this.xScalePaddingLeft);
 			if (this.display){
 				ctx.fillStyle = this.textColor;
-				ctx.font = this.font;
+				ctx.font = this.font.toString();
 				each(this.yLabels,(labelString: string,index: number) => {
 					var yLabelCenter = this.endPoint - (yLabelGap * index),
 						linePositionY = Math.round(yLabelCenter),
@@ -1426,7 +851,7 @@ module ChartJs {
 					ctx.save();
 					ctx.translate(xPos,(isRotated) ? this.endPoint + 12 : this.endPoint + 8);
 					ctx.rotate(toRadians(this.xLabelRotation)*-1);
-					ctx.font = this.font;
+					ctx.font = this.font.toString();
 					ctx.textAlign = (isRotated) ? "right" : "center";
 					ctx.textBaseline = (isRotated) ? "middle" : "top";
 					ctx.fillText(label, 0, 0);
@@ -1435,10 +860,7 @@ module ChartJs {
 			}
 		}
 
-		fontSize: number;
-		fontFamily: string;
-		fontStyle: string;
-		font: string;
+		font: Font;
 		yLabels: string[];
 		yLabelWidth: number;
 		xLabels: string[];
@@ -1468,14 +890,65 @@ module ChartJs {
 		showVerticalLines: boolean;
 	}
 
-	export class RadialScale extends Element {
-		constructor(ctx: CanvasRenderingContext2D, options: Object) {
-			super(ctx, options);
+	export interface IRadialScaleOptions extends IElementOptions {
+		font?: Font;
+		fontColor?: string;
+		pointLabelFont?: Font;
+		pointLabelFontColor?: string;
+		width?: number;
+		height?: number;
+		backdropPaddingX?: number;
+		backdropPaddingY?: number;
+		backdropColor?: string;
+		showLabels?: boolean;
+		showLabelBackdrop?: boolean;
+		min?: number;
+		max?: number;
+		stepValue?: number;
+		steps?: number;
+		lineArc?: boolean;
+		yLabels?: string[];
+		templateString?: string;
+		valuesCount?: number;
+		labels?: string[];
+		lineWidth?: number;
+		lineColor?: string;
+		angleLineWidth?: number;
+		angleLineColor?: string;
+	}
+
+	export class RadialScale extends Element<void> {
+		constructor(chart: ChartHandle, options: IRadialScaleOptions) {
+			this.font = options.font;
+			this.fontColor = options.fontColor;
+			this.pointLabelFont = options.pointLabelFont;
+			this.pointLabelFontColor = options.pointLabelFontColor;
+			this.width = options.width;
+			this.height = options.height;
+			this.backdropPaddingX = options.backdropPaddingX;
+			this.backdropPaddingY = options.backdropPaddingY;
+			this.backdropColor = options.backdropColor;
+			this.showLabels = options.showLabels;
+			this.showLabelBackdrop = options.showLabelBackdrop;
+			this.min = options.min;
+			this.max = options.max;
+			this.stepValue = options.stepValue;
+			this.steps = options.steps;
+			this.lineArc = options.lineArc;
+			this.yLabels = options.yLabels;
+			this.templateString = options.templateString;
+			this.valuesCount = options.valuesCount;
+			this.labels = options.labels;
+			this.lineWidth = options.lineWidth;
+			this.lineColor = options.lineColor;
+			this.angleLineWidth = options.angleLineWidth;
+			this.angleLineColor = options.angleLineColor;
+			super(chart, options);
 		}
 
 		initialize() {
 			this.size = min([this.height, this.width]);
-			this.drawingArea = (this.display) ? (this.size / 2) - (this.fontSize / 2 + this.backdropPaddingY) : (this.size / 2);
+			this.drawingArea = (this.display) ? (this.size / 2) - (this.font.size / 2 + this.backdropPaddingY) : (this.size / 2);
 		}
 
 		calculateCenterOffset(value: number) {
@@ -1488,7 +961,7 @@ module ChartJs {
 			if (!this.lineArc) {
 				this.setScaleSize();
 			} else {
-				this.drawingArea = (this.display) ? (this.size/2) - (this.fontSize/2 + this.backdropPaddingY) : (this.size/2);
+				this.drawingArea = (this.display) ? (this.size/2) - (this.font.size/2 + this.backdropPaddingY) : (this.size/2);
 			}
 			this.buildYLabels();
 			return this;
@@ -1540,7 +1013,7 @@ module ChartJs {
 
 			// Get maximum radius of the polygon. Either half the height (minus the text width) or half the width.
 			// Use this to calculate the offset + change. - Make sure L/R protrusion is at least 0 to stop issues with centre points
-			var largestPossibleRadius = min([(this.height/2 - this.pointLabelFontSize - 5), this.width/2]),
+			var largestPossibleRadius = min([(this.height/2 - this.pointLabelFont.size - 5), this.width/2]),
 				pointPosition,
 				i,
 				textWidth,
@@ -1556,7 +1029,7 @@ module ChartJs {
 				radiusReductionRight,
 				radiusReductionLeft,
 				maxWidthRadius;
-			this.ctx.font = fontString(this.pointLabelFontSize,this.pointLabelFontStyle,this.pointLabelFontFamily);
+			this.ctx.font = this.pointLabelFont.toString();
 			for (i=0;i<this.valuesCount;i++){
 				// 5px to space the text slightly out - similar to what we do in the draw function.
 				pointPosition = this.getPointPosition(i, largestPossibleRadius);
@@ -1669,16 +1142,16 @@ module ChartJs {
 								ctx.stroke();
 							}
 						}
-						if(this.showLabels){
-							ctx.font = fontString(this.fontSize,this.fontStyle,this.fontFamily);
+						if(this.showLabels) {
+							ctx.font = this.font.toString();
 							if (this.showLabelBackdrop){
 								var labelWidth = ctx.measureText(label).width;
 								ctx.fillStyle = this.backdropColor;
 								ctx.fillRect(
 									this.xCenter - labelWidth/2 - this.backdropPaddingX,
-									yHeight - this.fontSize/2 - this.backdropPaddingY,
+									yHeight - this.font.size/2 - this.backdropPaddingY,
 									labelWidth + this.backdropPaddingX*2,
-									this.fontSize + this.backdropPaddingY*2
+									this.font.size + this.backdropPaddingY*2
 								);
 							}
 							ctx.textAlign = 'center';
@@ -1703,7 +1176,7 @@ module ChartJs {
 						}
 						// Extra 3px out for some label spacing
 						var pointLabelPosition = this.getPointPosition(i, this.calculateCenterOffset(this.max) + 5);
-						ctx.font = fontString(this.pointLabelFontSize,this.pointLabelFontStyle,this.pointLabelFontFamily);
+						ctx.font = this.pointLabelFont.toString();
 						ctx.fillStyle = this.pointLabelFontColor;
 
 						var labelsCount = this.labels.length,
@@ -1736,44 +1209,52 @@ module ChartJs {
 			}
 		}
 
-		fontSize: number;
-		size: number;
-		drawingArea: number;
+		font: Font;
+		fontColor: string;
+		pointLabelFont: Font;
+		pointLabelFontColor: string;
 		width: number;
 		height: number;
 		backdropPaddingX: number;
 		backdropPaddingY: number;
+		backdropColor: string;
+		showLabels: boolean;
+		showLabelBackdrop: boolean;
 		min: number;
 		max: number;
-		lineArc: boolean;
-		yLabels: string[];
 		stepValue: number;
 		steps: number;
+		lineArc: boolean;
+		yLabels: string[];
 		templateString: string;
 		valuesCount: number;
-		pointLabelFontSize: number;
-		pointLabelFontStyle: string;
-		pointLabelFontFamily: string;
 		labels: string[];
-		xCenter: number;
-		yCenter: number;
 		lineWidth: number;
 		lineColor: string;
-		showLabels: boolean;
-		fontStyle: string;
-		fontFamily: string;
-		fontColor: string;
-		showLabelBackdrop: boolean;
-		backdropColor: string;
 		angleLineWidth: number;
 		angleLineColor: string;
-		pointLabelFontColor: string;
+		private xCenter: number;
+		private yCenter: number;
+		private size: number;
+		private drawingArea: number;
 	}
 
-	export class Dataset {
-		elements: Element[];
+	export class Dataset<T> {
+		elements: Element<T>[];
 		color: Color;
 		highlightColor: Color;
+	}
+
+	export interface IChartDataSet<T> {
+		label?: string;
+		color: Color;
+		highlightColor: Color;
+		data: T[];
+	}
+
+	export interface IChartData<T> {
+		datasets: IChartDataSet<T>[];
+		labels: string[];
 	}
 
 	export interface IChartOptions {
@@ -1819,14 +1300,8 @@ module ChartJs {
         // Boolean - Whether the scale should start at zero, or an order of magnitude down from the lowest value
         scaleBeginAtZero?: boolean;
 
-        // String - Scale label font declaration for the scale label
-        scaleFontFamily?: string;
-
-        // Number - Scale label font size in pixels
-        scaleFontSize?: number;
-
-        // String - Scale label font weight style
-        scaleFontStyle?: string;
+		//Font - The font used for the scale
+		scaleFont?: Font;
 
         // String - Scale label font colour
         scaleFontColor?: string;
@@ -1843,29 +1318,14 @@ module ChartJs {
         // Array - Array of string names to attach tooltip events
         tooltipEvents?: string[];
 
-        // String - Tooltip background colour
-        tooltipFillColor?: string;
+		tooltipColor?: Color;
 
-        // String - Tooltip label font declaration for the scale label
-        tooltipFontFamily?: string;
-
-        // Number - Tooltip label font size in pixels
-        tooltipFontSize?: number;
-
-        // String - Tooltip font weight style
-        tooltipFontStyle?: string;
+		tooltipFont?: Font;
 
         // String - Tooltip label font colour
         tooltipFontColor?: string;
 
-        // String - Tooltip title font declaration for the scale label
-        tooltipTitleFontFamily?: string;
-
-        // Number - Tooltip title font size in pixels
-        tooltipTitleFontSize?: number;
-
-        // String - Tooltip title font weight style
-        tooltipTitleFontStyle?: string;
+		tooltipTitleFont: Font;
 
         // String - Tooltip title font colour
         tooltipTitleFontColor?: string;
@@ -1904,29 +1364,61 @@ module ChartJs {
 		legendTemplate?: string;
 	}
 
-	export class ChartBase {
-	    private data;
+	export class ChartHandle {
+		constructor(context: CanvasRenderingContext2D) {
+			this.ctx = context;
+			this.canvas = this.ctx.canvas;
+            this.width = this.canvas.width;
+            this.height = this.canvas.height;
+            this.aspectRatio = this.width / this.height;
+	        this.id = uid();
+	        ChartHandle.instances[this.id] = this;
+		}
+
+		clear(): ChartHandle {
+			clear(this);
+			return this;
+		}
+
+		destroy() {
+			this.clear();
+			unbindEvents(this, this.events);
+			var canvas = this.canvas;
+		
+			canvas.width = this.width;
+			canvas.height = this.height;
+
+			if (canvas.style.removeProperty) {
+				canvas.style.removeProperty('width');
+				canvas.style.removeProperty('height');
+			} else {
+				canvas.style.removeAttribute('width');
+				canvas.style.removeAttribute('height');
+			}
+
+			delete Chart.instances[this.id];
+		}
+
 	    private id: string;
-	    ctx: CanvasRenderingContext2D;
+		ctx: CanvasRenderingContext2D;
         canvas: HTMLCanvasElement;
         width: number;
         height: number;
         aspectRatio: number;
-        animationFrame: number;
+		private static instances: IDictionary<ChartHandle> = {};
         events: IDictionary<() => void>;
-	    activeElements: Element[];
-	    datasets: Dataset[];
+	}
 
-        constructor(context: CanvasRenderingContext2D, data: any) {
-	        this.canvas = context.canvas;
-            this.ctx = context;
-            this.width = this.canvas.width;
-            this.height = this.canvas.height;
-            this.aspectRatio = this.width / this.height;
+	export class ChartBase<T> extends ChartHandle {
+	    private data: IChartData<T>;
+        animationFrame: number;
+	    activeElements: Element<T>[];
+	    datasets: Dataset<T>[];
 
-	        this.id = uid();
+        constructor(context: CanvasRenderingContext2D, data: IChartData<T>) {
+	        super(context);
+
 	        this.data = data;
-	        Chart.instances[this.id] = this;
 
 
 
@@ -1937,21 +1429,16 @@ module ChartJs {
             retinaScale(this);
         }
 
-		initialize(data?: any): ChartBase {
+		initialize(data?: IChartData<T>): ChartBase<T> {
 			return this;
 		}
 
-		clear(): ChartBase {
-			clear(this);
-			return this;
-		}
-
-		stop(): ChartBase {
+		stop(): ChartBase<T> {
 			cancelAnimFrame(this.animationFrame);
 			return this;
 		}
 
-		resize(callback?: Function, ...args: any[]): ChartBase {
+		resize(callback?: Function, ...args: any[]): ChartBase<T> {
 			this.stop();
 			var canvas = this.canvas,
 				newWidth = getMaximumWidth(canvas),
@@ -1994,29 +1481,10 @@ module ChartJs {
 			return template(this.getChartOptions().legendTemplate, this);
 		}
 
-		destroy() {
-			this.clear();
-			unbindEvents(this, this.events);
-			var canvas = this.canvas;
-		
-			canvas.width = this.width;
-			canvas.height = this.height;
-
-			if (canvas.style.removeProperty) {
-				canvas.style.removeProperty('width');
-				canvas.style.removeProperty('height');
-			} else {
-				canvas.style.removeAttribute('width');
-				canvas.style.removeAttribute('height');
-			}
-
-			delete Chart.instances[this.id];
-		}
-
-		showTooltip(chartElements: Element[], forceRedraw?: boolean) {
+		showTooltip(chartElements: Element<T>[], forceRedraw?: boolean) {
 			if (!this.activeElements) this.activeElements = [];
 
-			var isChanged = ((elements: Element[]) => {
+			var isChanged = ((elements: Element<T>[]) => {
 				var changed = false;
 				if (elements.length !== this.activeElements.length) {
 					return true;
@@ -2052,25 +1520,25 @@ module ChartJs {
 					var tooltipLabels = [],
 						tooltipColors = [],
 						medianPosition = ((index: number) => {
-							var elements: Element[] = [],
-								dataCollection: Element[],
+							var elements: Element<T>[] = [],
+								dataCollection: Element<T>[],
 								xPositions: number[] = [],
 								yPositions: number[] = [];
-							each(this.datasets, (dataset: Dataset) => {
+							each(this.datasets, (dataset: Dataset<T>) => {
 								dataCollection = dataset.elements;
 								if (dataCollection[index] && dataCollection[index].hasValue()) {
 									elements.push(dataCollection[index]);
 								}
 							});
 
-							each(elements, (element: Element) => {
+							each(elements, (element: Element<T>) => {
 								xPositions.push(element.x);
 								yPositions.push(element.y);
 
 								tooltipLabels.push(template(options.multiTooltipTemplate, element));
 								tooltipColors.push({
-									fill: element.fillColor,
-									stroke: element.strokeColor
+									fill: element.color.fill,
+									stroke: element.color.stroke
 								});
 							});
 
@@ -2086,21 +1554,17 @@ module ChartJs {
 								y: (yMin + yMax) / 2
 							};
 						})(dataIndex);
-					new MultiToolTip(this.ctx, {
+					new MultiToolTip(this, {
 						x: medianPosition.x,
 						y: medianPosition.y,
 						xPadding: options.tooltipXPadding,
 						yPadding: options.tooltipYPadding,
 						xOffset: options.tooltipXOffset,
-						fillColor: options.tooltipFillColor,
+						color: options.tooltipColor,
 						textColor: options.tooltipFontColor,
-						fontFamily: options.tooltipFontFamily,
-						fontStyle: options.tooltipFontStyle,
-						fontSize: options.tooltipFontSize,
+						font: options.tooltipFont,
 						titleTextColor: options.tooltipTitleFontColor,
-						titleFontFamily: options.tooltipTitleFontFamily,
-						titleFontStyle: options.tooltipTitleFontStyle,
-						titleFontSize: options.tooltipTitleFontSize,
+						titleFont: options.tooltipTitleFont,
 						cornerRadius: options.tooltipCornerRadius,
 						labels: tooltipLabels,
 						legendColors: tooltipColors,
@@ -2109,18 +1573,16 @@ module ChartJs {
 						chart: this
 					}).draw();
 				} else {
-					each(chartElements, (element: Element) => {
+					each(chartElements, (element: Element<T>) => {
 						var tooltipPosition = element.tooltipPosition();
-						new Tooltip(this.ctx, {
+						new ToolTip(this, {
 							x: Math.round(tooltipPosition.x),
 							y: Math.round(tooltipPosition.y),
 							xPadding: options.tooltipXPadding,
 							yPadding: options.tooltipYPadding,
-							fillColor: options.tooltipFillColor,
+							color: options.tooltipColor,
 							textColor: options.tooltipFontColor,
-							fontFamily: options.tooltipFontFamily,
-							fontStyle: options.tooltipFontStyle,
-							fontSize: options.tooltipFontSize,
+							font: options.tooltipFont,
 							caretHeight: options.tooltipCaretSize,
 							cornerRadius: options.tooltipCornerRadius,
 							text: template(options.tooltipTemplate, Element),
@@ -2148,12 +1610,10 @@ module ChartJs {
 			throw new Error("Not Implemented");
 		}
 
-        public static globalDefaults: IChartOptions;
-		private static instances: IDictionary<ChartBase> = {};
 	}
 
-    export class Chart<TOptions extends IChartOptions> extends ChartBase {
-	    constructor(context: CanvasRenderingContext2D, data: any, options: TOptions, defaults: any) {
+    export class Chart<TValue, TOptions extends IChartOptions> extends ChartBase<TValue> {
+	    constructor(context: CanvasRenderingContext2D, data: IChartData<TValue>, options: TOptions, defaults: any) {
 	        this.options = <TOptions>merge(options, merge(defaults, Chart.globalDefaults));
 		    super(context, data);
 	    }
@@ -2162,6 +1622,7 @@ module ChartJs {
 		getChartOptions(): IChartOptions {
 			return this.options;
 		}
+        public static globalDefaults: IChartOptions;
     }
 
 
@@ -2180,9 +1641,11 @@ module ChartJs {
         scaleLabel: "<%=value%>",
         scaleIntegersOnly: true,
         scaleBeginAtZero: false,
-        scaleFontFamily: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
-        scaleFontSize: 12,
-        scaleFontStyle: "normal",
+		scaleFont: {
+			family: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
+			size: 12,
+			style: "normal"
+		},
         scaleFontColor: "#666",
         responsive: false,
         maintainAspectRatio: true,
@@ -2190,13 +1653,21 @@ module ChartJs {
         customTooltips: false,
         tooltipEvents: ["mousemove", "touchstart", "touchmove", "mouseout"],
         tooltipFillColor: "rgba(0,0,0,0.8)",
-        tooltipFontFamily: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
-        tooltipFontSize: 14,
-        tooltipFontStyle: "normal",
+		tooltipColor: {
+			fill: "rgba(0,0,0,0.8)",
+			stroke: "rgba(0,0,0,1)"
+		},
+		tooltipFont: {
+			family: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
+			size: 14,
+			style: "normal"
+		},
         tooltipFontColor: "#fff",
-        tooltipTitleFontFamily: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
-        tooltipTitleFontSize: 14,
-        tooltipTitleFontStyle: "bold",
+		tooltipTitleFont: {
+			family: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
+			size: 14,
+			style: "bold",
+		},
         tooltipTitleFontColor: "#fff",
         tooltipYPadding: 6,
         tooltipXPadding: 6,

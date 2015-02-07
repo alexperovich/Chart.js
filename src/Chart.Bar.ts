@@ -50,7 +50,7 @@ module ChartJs {
 	}
 
 	export class BarScale extends Scale {
-		constructor(ctx: CanvasRenderingContext2D, options: IBarScaleOptions) {
+		constructor(chart: ChartHandle, options: IBarScaleOptions) {
 			this.offsetGridLines = true;
 			this.barDatasetSpacing = options.barDatasetSpacing;
 			this.barValueSpacing = options.barValueSpacing;
@@ -65,7 +65,7 @@ module ChartJs {
 			this.beginAtZero = options.beginAtZero;
 			this.integersOnly = options.integersOnly;
 			this.dataTotal = options.dataTotal;
-			super(ctx, options);
+			super(chart, options);
 		}
 
 		calculateBarX(datasetCount: number, datasetIndex: number, barIndex: number) {
@@ -93,7 +93,7 @@ module ChartJs {
 				var updatedRanges = calculateScaleRange(
 					this.dataTotal(),
 					currentHeight,
-					this.fontSize,
+					this.font.size,
 					this.beginAtZero,
 					this.integersOnly
 				);
@@ -112,25 +112,22 @@ module ChartJs {
 		scaleOverride: boolean;
 	}
 
-	export interface IBarElementOptions {
+	export interface IBarElementOptions extends IRectangleOptions {
 		strokeWidth: number;
 		showStroke: boolean;
-		highlightFill: string;
-		highlightStroke: string;
+		highlightColor?: Color;
 	}
 
-	export class BarElement extends Rectangle {
-		constructor(ctx: CanvasRenderingContext2D, barChart: BarChart, options: IBarElementOptions) {
-			super(ctx, options);
+	export class BarElement extends Rectangle<number> {
+		constructor(chart: ChartHandle, barChart: BarChart, options: IBarElementOptions) {
+			super(chart, options);
 			this.strokeWidth = options.strokeWidth;
 			this.showStroke = options.showStroke;
-			this.highlightFill = options.highlightFill;
-			this.highlightStroke = options.highlightStroke;
+			this.highlightColor = options.highlightColor;
 		}
 
 		datasetLabel: string;
-		highlightFill: string;
-		highlightStroke: string;
+		highlightColor: Color;
 	}
 
 	export interface IBarChartOptions extends IChartOptions {
@@ -165,38 +162,38 @@ module ChartJs {
 		barDatasetSpacing: number;
 	}
 
-	export class BarChart extends Chart<IBarChartOptions> {
-		constructor(context: CanvasRenderingContext2D, data: any, options: IBarChartOptions) {
+	export class BarChart extends Chart<number, IBarChartOptions> {
+		constructor(context: CanvasRenderingContext2D, data: IChartData<number>, options: IBarChartOptions) {
 			super(context, data, options, defaultConfig);
 		}
 
-		initialize(data?: any): Chart<IBarChartOptions> {
+		initialize(data?: IChartData<number>): BarChart {
 			this.datasets = [];
 
 			if (this.options.showTooltips) {
 				bindEvents(this, this.options.tooltipEvents, (evt) => {
 					var activeBars = (evt.type !== "mouseout") ? this.getBarsAtEvent(evt) : [];
-					this.eachBars((bar: Element) => {
+					this.eachBars((bar: BarElement) => {
 						bar.restore(["fillColor", "strokeColor"]);
 					});
-					each(<BarElement[]>activeBars, (activeBar: BarElement) => {
-						activeBar.fillColor = activeBar.highlightFill;
-						activeBar.strokeColor = activeBar.highlightStroke;
+					each(activeBars, (activeBar: BarElement) => {
+						activeBar.color.fill = activeBar.highlightColor.fill;
+						activeBar.color.stroke = activeBar.highlightColor.stroke;
 					});
 					this.showTooltip(activeBars);
 				});
 			}
 
-			each(data.datasets, (dataset: any, index: number) => {
-				var datasetObject: Dataset = {
+			each(data.datasets, (dataset: IChartDataSet<number>, index: number) => {
+				var datasetObject: Dataset<number> = {
 					label: dataset.label || null,
 					color: {
-						fill: dataset.fillColor,
-						stroke: dataset.strokeColor
+						fill: dataset.color.fill,
+						stroke: dataset.color.stroke
 					},
 					highlightColor: {
-						fill: dataset.highlightFill,
-						stroke: dataset.highlightStroke
+						fill: dataset.highlightColor.fill,
+						stroke: dataset.highlightColor.stroke
 					},
 					elements: []
 				};
@@ -204,11 +201,9 @@ module ChartJs {
 				this.datasets.push(datasetObject);
 
 				each(dataset.data, (dataPoint, index: number) => {
-					var element = new BarElement(this.ctx, this, {
-						strokeColor: dataset.strokeColor,
-						fillColor: dataset.fillColor,
-						highlightFill: dataset.highlightFill || dataset.fillColor,
-						highlightStroke: dataset.highlightStroke || dataset.strokeColor,
+					var element = new BarElement(this, this, {
+						color: dataset.color,
+						highlightColor: dataset.highlightColor,
 						strokeWidth: this.options.barStrokeWidth,
 						showStroke: this.options.barShowStroke
 					});
@@ -235,7 +230,7 @@ module ChartJs {
 		update() {
 			this.scale.update();
 
-			each(this.activeElements, (activeElement: Element) => {
+			each(this.activeElements, (activeElement: BarElement) => {
 				activeElement.restore(["fillColor", "strokeColor"]);
 			});
 
@@ -251,12 +246,12 @@ module ChartJs {
 			});
 		}
 
-		getBarsAtEvent(evt): Element[] {
+		getBarsAtEvent(evt): BarElement[] {
 			var barIndex;
 			var barsArray = [],
 				eventPosition = getRelativePosition(evt),
-				datasetIterator = (dataset) => {
-					barsArray.push(dataset.bars[barIndex]);
+				datasetIterator = (dataset: Dataset<number>) => {
+					barsArray.push(dataset.elements[barIndex]);
 				};
 
 			for (var datasetIndex = 0; datasetIndex < this.datasets.length; datasetIndex++) {
@@ -288,15 +283,12 @@ module ChartJs {
 				height: this.height,
 				width: this.width,
 				textColor: this.options.scaleFontColor,
-				fontSize: this.options.scaleFontSize,
-				fontStyle: this.options.scaleFontStyle,
-				fontFamily: this.options.scaleFontFamily,
 				valuesCount: labels.length,
 				beginAtZero: this.options.scaleBeginAtZero,
 				integersOnly: this.options.scaleIntegersOnly,
 				dataTotal: dataTotal,
 				xLabels : labels,
-				font : fontString(this.options.scaleFontSize, this.options.scaleFontStyle, this.options.scaleFontFamily),
+				font : this.options.scaleFont,
 				lineWidth : this.options.scaleLineWidth,
 				lineColor : this.options.scaleLineColor,
 				showHorizontalLines : this.options.scaleShowHorizontalLines,
@@ -313,14 +305,14 @@ module ChartJs {
 				max: this.options.scaleStartValue + (this.options.scaleSteps * this.options.scaleStepWidth)
 			};
 
-			this.scale = new BarScale(this.ctx, scaleOptions);
+			this.scale = new BarScale(this, scaleOptions);
 		}
 
 		addData(values: any[], label: string) {
 			//Map the values array for each of the datasets
 			each(values, (value,index) => {
 				//Add a new point for each piece of data, passing any required data to draw.
-				var element = new BarElement(this.ctx, this, {
+				var element = new BarElement(this, this, {
 					strokeColor: this.datasets[index].color.stroke,
 					fillColor: this.datasets[index].color.fill,
 					highlightFill: this.datasets[index].highlightColor.fill,
@@ -343,7 +335,7 @@ module ChartJs {
 
 		removeData() {
 			this.scale.removeXLabel();
-			each(this.datasets, (dataset: Dataset) => {
+			each(this.datasets, (dataset: Dataset<number>) => {
 				dataset.elements.shift();
 			});
 			this.update();
@@ -366,7 +358,7 @@ module ChartJs {
 			this.scale.draw(easingDecimal);
 
 			//Draw all the bars for each dataset
-			each(this.datasets,(dataset: Dataset, index: number) => {
+			each(this.datasets,(dataset: Dataset<number>, index: number) => {
 				each(dataset.elements, (element: BarElement, elementIndex: number) => {
 					if (element.hasValue()){
 						element.base = this.scale.endPoint;
