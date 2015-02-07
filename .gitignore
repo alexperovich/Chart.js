@@ -18,3 +18,5 @@ bin
 /src/Chart.Core.js.map
 /src/Chart.Core.js
 packages
+/src/Chart.Helpers.js
+/src/Chart.Helpers.js.map
