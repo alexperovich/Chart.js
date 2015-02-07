@@ -1,4 +1,5 @@
-﻿
+﻿/// <reference path="rgbcolor.ts"/>
+
 "use strict";
 module ChartJs {
     export interface ILoopable<T> {
@@ -14,6 +15,38 @@ module ChartJs {
 		fill: string;
 		stroke: string;
 	}
+
+    function getRgbFromColor(color: string): number[] {
+    	return new RgbColor(color).toArray();
+    }
+
+    function calcGradient(position: number, begin: string, end: string) {
+    	var beginColor = getRgbFromColor(begin);
+    	var endColor = getRgbFromColor(end);
+    	return getStepColor(beginColor, endColor, position);
+    }
+
+    function rgbToString(rgb: number[]): string {
+    	return 'rgb(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ')';
+    }
+
+    function getStepColor(colorA: number[], colorB: number[], value: number) {
+    	return rgbToString(colorA.map((color, i) => (color + value * (colorB[i] - color)) & 255));
+    }
+
+    export class ColorGradient {
+        constructor(begin: string, end: string) {
+            this.begin = begin;
+            this.end = end;
+        }
+
+        getPositionValue(position: number): string {
+            return calcGradient(position, this.begin, this.end);
+        }
+
+        begin: string;
+        end: string;
+    }
 
     export class Point {
         constructor(x: number, y: number) {

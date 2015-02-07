@@ -238,6 +238,10 @@ module ChartJs {
 			super(chart, options);
 		}
 
+        getFillColor() {
+            return this.color.fill;
+        }
+
 		draw() {
 			var ctx = this.ctx,
 				halfWidth = this.width / 2,
@@ -256,7 +260,7 @@ module ChartJs {
 
 			ctx.beginPath();
 
-			ctx.fillStyle = this.color.fill;
+		    ctx.fillStyle = this.getFillColor();
 			ctx.strokeStyle = this.color.stroke;
 			ctx.lineWidth = this.strokeWidth;
 

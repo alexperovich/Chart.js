@@ -116,18 +116,35 @@ module ChartJs {
 		strokeWidth: number;
 		showStroke: boolean;
 		highlightColor?: Color;
+        barGradient: ColorGradient;
 	}
 
-	export class BarElement extends Rectangle<number> {
+    export interface IColoredValue {
+        gradientPosition: number;
+        value: number;
+    }
+
+	export class BarElement extends Rectangle<IColoredValue> {
 		constructor(chart: ChartHandle, barChart: BarChart, options: IBarElementOptions) {
 			super(chart, options);
 			this.strokeWidth = options.strokeWidth;
 			this.showStroke = options.showStroke;
 			this.highlightColor = options.highlightColor;
+		    this.barGradient = options.barGradient;
 		}
+
+        getFillColor(): string {
+            if (!this.barGradient)
+                return this.color.fill;
+            if (typeof this.value.gradientPosition === "undefined")
+                return this.color.fill;
+            var position = this.value.gradientPosition;
+            return this.barGradient.getPositionValue(position);
+        }
 
 		datasetLabel: string;
 		highlightColor: Color;
+        barGradient: ColorGradient;
 	}
 
 	export interface IBarChartOptions extends IChartOptions {
@@ -160,14 +177,16 @@ module ChartJs {
 
 		//Number - Spacing between data sets within X values
 		barDatasetSpacing: number;
+
+        barGradient?: ColorGradient;
 	}
 
-	export class BarChart extends Chart<number, IBarChartOptions> {
+	export class BarChart extends Chart<IColoredValue, IBarChartOptions> {
 		constructor(context: CanvasRenderingContext2D, data: IChartData<number>, options: IBarChartOptions) {
 			super(context, data, options, defaultConfig);
 		}
 
-		initialize(data?: IChartData<number>): BarChart {
+		initialize(data?: IChartData<IColoredValue>): BarChart {
 			this.datasets = [];
 
 			if (this.options.showTooltips) {
@@ -184,8 +203,8 @@ module ChartJs {
 				});
 			}
 
-			each(data.datasets, (dataset: IChartDataSet<number>, index: number) => {
-				var datasetObject: Dataset<number> = {
+			each(data.datasets, (dataset: IChartDataSet<IColoredValue>, index: number) => {
+				var datasetObject: Dataset<IColoredValue> = {
 					label: dataset.label || null,
 					color: {
 						fill: dataset.color.fill,
@@ -200,13 +219,14 @@ module ChartJs {
 
 				this.datasets.push(datasetObject);
 
-				each(dataset.data, (dataPoint, index: number) => {
-					var element = new BarElement(this, this, {
-						color: dataset.color,
-						highlightColor: dataset.highlightColor,
-						strokeWidth: this.options.barStrokeWidth,
-						showStroke: this.options.barShowStroke
-					});
+				each(dataset.data, (dataPoint: IColoredValue, index: number) => {
+				    var element = new BarElement(this, this, {
+				        color: dataset.color,
+				        highlightColor: dataset.highlightColor,
+				        strokeWidth: this.options.barStrokeWidth,
+				        showStroke: this.options.barShowStroke,
+                        barGradient: this.options.barGradient
+				    });
 					element.value = dataPoint;
 					element.label = data.labels[index];
 					element.datasetLabel = dataset.label;
@@ -250,7 +270,7 @@ module ChartJs {
 			var barIndex;
 			var barsArray = [],
 				eventPosition = getRelativePosition(evt),
-				datasetIterator = (dataset: Dataset<number>) => {
+				datasetIterator = (dataset: Dataset<IColoredValue>) => {
 					barsArray.push(dataset.elements[barIndex]);
 				};
 
@@ -271,7 +291,7 @@ module ChartJs {
 			var dataTotal =() => {
 				var values = [];
 				this.eachBars((bar) => {
-					values.push(bar.value);
+					values.push(bar.value.value);
 				});
 				return values;
 			};
@@ -308,7 +328,7 @@ module ChartJs {
 			this.scale = new BarScale(this, scaleOptions);
 		}
 
-		addData(values: any[], label: string) {
+		addData(values: IColoredValue[], label: string) {
 			//Map the values array for each of the datasets
 			each(values, (value,index) => {
 				//Add a new point for each piece of data, passing any required data to draw.
@@ -318,7 +338,8 @@ module ChartJs {
 					highlightFill: this.datasets[index].highlightColor.fill,
 					highlightStroke: this.datasets[index].highlightColor.stroke,
 					strokeWidth: this.options.barStrokeWidth,
-					showStroke: this.options.barShowStroke
+                    showStroke: this.options.barShowStroke,
+                    barGradient: this.options.barGradient
 				});
 				element.value = value;
 				element.label = label;
@@ -335,7 +356,7 @@ module ChartJs {
 
 		removeData() {
 			this.scale.removeXLabel();
-			each(this.datasets, (dataset: Dataset<number>) => {
+			each(this.datasets, (dataset: Dataset<IColoredValue>) => {
 				dataset.elements.shift();
 			});
 			this.update();
@@ -358,14 +379,14 @@ module ChartJs {
 			this.scale.draw(easingDecimal);
 
 			//Draw all the bars for each dataset
-			each(this.datasets,(dataset: Dataset<number>, index: number) => {
+			each(this.datasets,(dataset: Dataset<IColoredValue>, index: number) => {
 				each(dataset.elements, (element: BarElement, elementIndex: number) => {
 					if (element.hasValue()){
 						element.base = this.scale.endPoint;
 						//Transition then draw
 						element.transition({
 							x : this.scale.calculateBarX(this.datasets.length, index, elementIndex),
-							y : this.scale.calculateY(element.value),
+							y : this.scale.calculateY(element.value.value),
 							width : this.scale.calculateBarWidth(this.datasets.length)
 						}, easingDecimal).draw();
 					}

@@ -42,6 +42,7 @@
     <TypeScriptCompile Include="Chart.Bar.ts" />
     <TypeScriptCompile Include="Chart.Core.ts" />
     <TypeScriptCompile Include="Chart.Helpers.ts" />
+    <TypeScriptCompile Include="rgbcolor.ts" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">12.0</VisualStudioVersion>
