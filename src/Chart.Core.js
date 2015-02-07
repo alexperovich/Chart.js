@@ -59,17 +59,26 @@ var ChartJs;
         return objClone;
     }
     ChartJs.cloneProperties = cloneProperties;
-    function each(collection, callback) {
+    function merge(options, defaults) {
+        for (var prop in defaults) {
+            if (!options.hasOwnProperty(prop)) {
+                options[prop] = defaults[prop];
+            }
+        }
+        return options;
+    }
+    ChartJs.merge = merge;
+    function each(collection, callback, param) {
         if (collection.length) {
             var i;
             for (i = 0; i < collection.length; i++) {
-                callback(collection[i], i);
+                callback(collection[i], i, param);
             }
         }
         else {
             for (var item in collection) {
                 if (collection.hasOwnProperty(item)) {
-                    callback(collection[item], item);
+                    callback(collection[item], item, param);
                 }
             }
         }
@@ -578,15 +587,12 @@ var ChartJs;
         ctx.closePath();
     }
     ChartJs.drawRoundedRectangle = drawRoundedRectangle;
-    var ChartSettings = (function () {
-        function ChartSettings() {
-        }
-        return ChartSettings;
-    })();
-    ChartJs.ChartSettings = ChartSettings;
     var Element = (function () {
         function Element(ctx, options) {
+            this.ctx = ctx;
             this.label = options.label;
+            this.strokeColor = options.strokeColor;
+            this.fillColor = options.fillColor;
             this.initialize.apply(this, arguments);
             this.save();
         }
@@ -635,7 +641,7 @@ var ChartJs;
                 return true;
             return false;
         };
-        Element.prototype.draw = function () {
+        Element.prototype.draw = function (easingDecimal) {
         };
         Element.prototype.inRange = function (chartX, chartY) {
             return false;
@@ -914,6 +920,25 @@ var ChartJs;
     var Scale = (function (_super) {
         __extends(Scale, _super);
         function Scale(ctx, options) {
+            this.templateString = options.templateString;
+            this.height = options.height;
+            this.width = options.width;
+            this.textColor = options.textColor;
+            this.fontSize = options.fontSize;
+            this.fontStyle = options.fontStyle;
+            this.fontFamily = options.fontFamily;
+            this.xLabels = options.xLabels;
+            this.font = options.font;
+            this.lineWidth = options.lineWidth;
+            this.lineColor = options.lineColor;
+            this.showHorizontalLines = options.showHorizontalLines;
+            this.showVerticalLines = options.showVerticalLines;
+            this.gridLineWidth = options.gridLineWidth;
+            this.gridLineColor = options.gridLineColor;
+            this.padding = options.padding;
+            this.showLabels = options.showLabels;
+            this.display = options.display;
+            this.valuesCount = options.valuesCount;
             _super.call(this, ctx, options);
         }
         Scale.prototype.initialize = function () {
@@ -1032,7 +1057,7 @@ var ChartJs;
             this.fit();
             return this;
         };
-        Scale.prototype.draw = function () {
+        Scale.prototype.draw = function (easingDecimal) {
             var _this = this;
             var ctx = this.ctx, yLabelGap = (this.endPoint - this.startPoint) / this.steps, xStart = Math.round(this.xScalePaddingLeft);
             if (this.display) {
@@ -1354,8 +1379,8 @@ var ChartJs;
         return Dataset;
     })();
     ChartJs.Dataset = Dataset;
-    var Chart = (function () {
-        function Chart(context, data, options) {
+    var ChartBase = (function () {
+        function ChartBase(context, data) {
             this.canvas = context.canvas;
             this.ctx = context;
             this.width = this.canvas.width;
@@ -1363,57 +1388,57 @@ var ChartJs;
             this.aspectRatio = this.width / this.height;
             this.id = uid();
             this.data = data;
-            this.options = options;
             Chart.instances[this.id] = this;
-            if (options.responsive) {
+            if (this.getChartOptions().responsive) {
                 this.resize();
             }
-            this.initialize.call(this, data);
+            this.initialize(data);
             retinaScale(this);
         }
-        Chart.prototype.initialize = function (data) {
+        ChartBase.prototype.initialize = function (data) {
             return this;
         };
-        Chart.prototype.clear = function () {
+        ChartBase.prototype.clear = function () {
             clear(this);
             return this;
         };
-        Chart.prototype.stop = function () {
+        ChartBase.prototype.stop = function () {
             cancelAnimFrame(this.animationFrame);
             return this;
         };
-        Chart.prototype.resize = function (callback) {
+        ChartBase.prototype.resize = function (callback) {
             var args = [];
             for (var _i = 1; _i < arguments.length; _i++) {
                 args[_i - 1] = arguments[_i];
             }
             this.stop();
-            var canvas = this.canvas, newWidth = getMaximumWidth(canvas), newHeight = this.options.maintainAspectRatio ? newWidth / this.aspectRatio : getMaximumHeight(canvas);
+            var canvas = this.canvas, newWidth = getMaximumWidth(canvas), newHeight = this.getChartOptions().maintainAspectRatio ? newWidth / this.aspectRatio : getMaximumHeight(canvas);
             canvas.width = this.width = newWidth;
             canvas.height = this.height = newHeight;
             retinaScale(this);
             callback.apply(this, args);
             return this;
         };
-        Chart.prototype.reflow = function () {
+        ChartBase.prototype.reflow = function () {
         };
-        Chart.prototype.render = function (reflow) {
+        ChartBase.prototype.render = function (reflow) {
             if (reflow) {
                 this.reflow();
             }
-            if (this.options.animation && !reflow) {
-                animationLoop(this.draw, this.options.animationSteps, this.options.animationEasing, this.options.onAnimationProgress, this.options.onAnimationComplete, this);
+            var options = this.getChartOptions();
+            if (options.animation && !reflow) {
+                animationLoop(this.draw, options.animationSteps, options.animationEasing, options.onAnimationProgress, options.onAnimationComplete, this);
             }
             else {
-                this.draw();
-                this.options.onAnimationComplete.call(this);
+                this.draw(1);
+                options.onAnimationComplete.call(this);
             }
             return this;
         };
-        Chart.prototype.generateLegend = function () {
-            return template(this.options.legendTemplate, this);
+        ChartBase.prototype.generateLegend = function () {
+            return template(this.getChartOptions().legendTemplate, this);
         };
-        Chart.prototype.destroy = function () {
+        ChartBase.prototype.destroy = function () {
             this.clear();
             unbindEvents(this, this.events);
             var canvas = this.canvas;
@@ -1429,7 +1454,7 @@ var ChartJs;
             }
             delete Chart.instances[this.id];
         };
-        Chart.prototype.showTooltip = function (chartElements, forceRedraw) {
+        ChartBase.prototype.showTooltip = function (chartElements, forceRedraw) {
             var _this = this;
             if (!this.activeElements)
                 this.activeElements = [];
@@ -1451,10 +1476,8 @@ var ChartJs;
             else {
                 this.activeElements = chartElements;
             }
-            this.draw();
-            if (this.options.customTooltips) {
-                this.options.customTooltips(false);
-            }
+            this.draw(1);
+            var options = this.getChartOptions();
             if (chartElements.length > 0) {
                 if (this.datasets && this.datasets.length) {
                     var dataArray, dataIndex = 0;
@@ -1476,7 +1499,7 @@ var ChartJs;
                         each(elements, function (element) {
                             xPositions.push(element.x);
                             yPositions.push(element.y);
-                            tooltipLabels.push(template(_this.options.multiTooltipTemplate, element));
+                            tooltipLabels.push(template(options.multiTooltipTemplate, element));
                             tooltipColors.push({
                                 fill: element.fillColor,
                                 stroke: element.strokeColor
@@ -1494,25 +1517,24 @@ var ChartJs;
                     new MultiToolTip(this.ctx, {
                         x: medianPosition.x,
                         y: medianPosition.y,
-                        xPadding: this.options.tooltipXPadding,
-                        yPadding: this.options.tooltipYPadding,
-                        xOffset: this.options.tooltipXOffset,
-                        fillColor: this.options.tooltipFillColor,
-                        textColor: this.options.tooltipFontColor,
-                        fontFamily: this.options.tooltipFontFamily,
-                        fontStyle: this.options.tooltipFontStyle,
-                        fontSize: this.options.tooltipFontSize,
-                        titleTextColor: this.options.tooltipTitleFontColor,
-                        titleFontFamily: this.options.tooltipTitleFontFamily,
-                        titleFontStyle: this.options.tooltipTitleFontStyle,
-                        titleFontSize: this.options.tooltipTitleFontSize,
-                        cornerRadius: this.options.tooltipCornerRadius,
+                        xPadding: options.tooltipXPadding,
+                        yPadding: options.tooltipYPadding,
+                        xOffset: options.tooltipXOffset,
+                        fillColor: options.tooltipFillColor,
+                        textColor: options.tooltipFontColor,
+                        fontFamily: options.tooltipFontFamily,
+                        fontStyle: options.tooltipFontStyle,
+                        fontSize: options.tooltipFontSize,
+                        titleTextColor: options.tooltipTitleFontColor,
+                        titleFontFamily: options.tooltipTitleFontFamily,
+                        titleFontStyle: options.tooltipTitleFontStyle,
+                        titleFontSize: options.tooltipTitleFontSize,
+                        cornerRadius: options.tooltipCornerRadius,
                         labels: tooltipLabels,
                         legendColors: tooltipColors,
-                        legendColorBackground: this.options.multiTooltipKeyBackground,
+                        legendColorBackground: options.multiTooltipKeyBackground,
                         title: chartElements[0].label,
-                        chart: this,
-                        custom: this.options.customTooltips
+                        chart: this
                     }).draw();
                 }
                 else {
@@ -1521,27 +1543,26 @@ var ChartJs;
                         new Tooltip(_this.ctx, {
                             x: Math.round(tooltipPosition.x),
                             y: Math.round(tooltipPosition.y),
-                            xPadding: _this.options.tooltipXPadding,
-                            yPadding: _this.options.tooltipYPadding,
-                            fillColor: _this.options.tooltipFillColor,
-                            textColor: _this.options.tooltipFontColor,
-                            fontFamily: _this.options.tooltipFontFamily,
-                            fontStyle: _this.options.tooltipFontStyle,
-                            fontSize: _this.options.tooltipFontSize,
-                            caretHeight: _this.options.tooltipCaretSize,
-                            cornerRadius: _this.options.tooltipCornerRadius,
-                            text: template(_this.options.tooltipTemplate, Element),
-                            chart: _this,
-                            custom: _this.options.customTooltips
+                            xPadding: options.tooltipXPadding,
+                            yPadding: options.tooltipYPadding,
+                            fillColor: options.tooltipFillColor,
+                            textColor: options.tooltipFontColor,
+                            fontFamily: options.tooltipFontFamily,
+                            fontStyle: options.tooltipFontStyle,
+                            fontSize: options.tooltipFontSize,
+                            caretHeight: options.tooltipCaretSize,
+                            cornerRadius: options.tooltipCornerRadius,
+                            text: template(options.tooltipTemplate, Element),
+                            chart: _this
                         }).draw();
                     });
                 }
             }
             return this;
         };
-        Chart.prototype.draw = function () {
+        ChartBase.prototype.draw = function (ease) {
         };
-        Chart.prototype.toBase64Image = function (type) {
+        ChartBase.prototype.toBase64Image = function (type) {
             var args = [];
             for (var _i = 1; _i < arguments.length; _i++) {
                 args[_i - 1] = arguments[_i];
@@ -1553,12 +1574,26 @@ var ChartJs;
                 return this.canvas.toDataURL.call(this.canvas, args);
             }
         };
-        Chart.defaults = {};
-        Chart.instances = {};
-        return Chart;
+        ChartBase.prototype.getChartOptions = function () {
+            throw new Error("Not Implemented");
+        };
+        ChartBase.instances = {};
+        return ChartBase;
     })();
+    ChartJs.ChartBase = ChartBase;
+    var Chart = (function (_super) {
+        __extends(Chart, _super);
+        function Chart(context, data, options, defaults) {
+            this.options = merge(options, merge(defaults, Chart.globalDefaults));
+            _super.call(this, context, data);
+        }
+        Chart.prototype.getChartOptions = function () {
+            return this.options;
+        };
+        return Chart;
+    })(ChartBase);
     ChartJs.Chart = Chart;
-    Chart.defaults["global"] = {
+    Chart.globalDefaults = {
         animation: true,
         animationSteps: 60,
         animationEasing: "easeOutQuart",
@@ -1602,7 +1637,8 @@ var ChartJs;
         onAnimationProgress: function () {
         },
         onAnimationComplete: function () {
-        }
+        },
+        legendTemplate: "<ul class=\"<%=name.toLowerCase()%>-legend\"><% for (var i=0; i<datasets.length; i++){%><li><span style=\"background-color:<%=datasets[i].fillColor%>\"></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>"
     };
 })(ChartJs || (ChartJs = {}));
 //# sourceMappingURL=Chart.Core.js.map

@@ -70,23 +70,36 @@ module ChartJs {
 		return objClone;
 	}
 
+	export function merge(options: Object, defaults: Object) {
+		for (var prop in defaults) {
+			if (!options.hasOwnProperty(prop)) {
+				options[prop] = defaults[prop];
+			}
+		}
+		return options;
+	}
+
     export function each<T>(
         dictionary: IDictionary<T>,
         callback: (t: T, key?: string) => void): void;
     export function each<T>(
         loopable: ILoopable<T>,
         callback: (t: T, index?: number) => void): void;
+    export function each<T, TParam>(
+        loopable: ILoopable<T>,
+        callback: (t: T, index?: number, param?: TParam) => void,
+		param: TParam): void;
 
-    export function each<T, TThis>(collection: any, callback: (t: T, index: any) => void) {
+    export function each<T, TParam>(collection: any, callback: (t: T, index?: any, param?: TParam) => void, param?: TParam) {
         if (collection.length) {
             var i;
             for (i = 0; i < collection.length; i++) {
-                callback(collection[i], i);
+				callback(collection[i], i, param);
             }
         } else {
             for (var item in collection) {
 		        if (collection.hasOwnProperty(item)) {
-			        callback(collection[item], item);
+					callback(collection[item], item, param);
 		        }
 	        }
         }
@@ -522,7 +535,7 @@ module ChartJs {
         easingString: string,
         onProgress: (easeDecimal: number, stepDecimal: number) => void,
         onComplete: () => void,
-        chartInstance: Chart) {
+        chartInstance: ChartBase) {
         var currentStep = 0,
             easingFunction = Statics.easingEffects[easingString] || Statics.easingEffects["linear"];
 
@@ -584,7 +597,7 @@ module ChartJs {
         }
     }
 
-    export function bindEvents(chartInstance: Chart, events: string[], handler: EventListener) {
+    export function bindEvents(chartInstance: ChartBase, events: string[], handler: EventListener) {
         if (!chartInstance.events) chartInstance.events = {};
 
         each(events, (eventName) => {
@@ -595,7 +608,7 @@ module ChartJs {
         });
     }
 
-    export function unbindEvents(chartInstance: Chart, events: IDictionary<() => void>) {
+    export function unbindEvents(chartInstance: ChartBase, events: IDictionary<() => void>) {
         each(events, (handler, eventName) => {
             removeEvent(chartInstance.canvas, eventName, handler);
         });
@@ -611,7 +624,7 @@ module ChartJs {
         return container.clientHeight;
     }
 
-    export function retinaScale(chart: Chart) {
+    export function retinaScale(chart: ChartBase) {
         var ctx = chart.ctx,
             width = chart.canvas.width,
             height = chart.canvas.height;
@@ -624,7 +637,7 @@ module ChartJs {
         }
     }
 
-    export function clear(chart: Chart) {
+    export function clear(chart: ChartBase) {
         chart.ctx.clearRect(0, 0, chart.width, chart.height);
     }
 
@@ -656,138 +669,13 @@ module ChartJs {
 		ctx.closePath();
     }
 
-    export class ChartSettings {
-        // Boolean - Whether to animate the chart
-        animation: boolean;
-
-        // Number - Number of animation steps
-        animationSteps: number;
-
-        // String - Animation easing effect
-        animationEasing: string;
-
-        // Boolean - If we should show the scale at all
-        showScale: boolean;
-
-        // Boolean - If we want to override with a hard coded scale
-        scaleOverride: boolean;
-
-        // ** Required if scaleOverride is true **
-        // Number - The number of steps in a hard coded scale
-        scaleSteps: number;
-        // Number - The value jump in the hard coded scale
-        scaleStepWidth: number;
-
-        // Number - The scale starting value
-        scaleStartValue: number;
-
-        // String - Colour of the scale line
-        scaleLineColor: string;
-
-        // Number - Pixel width of the scale line
-        scaleLineWidth: number;
-
-        // Boolean - Whether to show labels on the scale
-        scaleShowLabels: boolean;
-
-        // Interpolated JS string - can access value
-        scaleLabel: string;
-
-        // Boolean - Whether the scale should stick to integers, and not show any floats even if drawing space is there
-        scaleIntegersOnly: boolean;
-
-        // Boolean - Whether the scale should start at zero, or an order of magnitude down from the lowest value
-        scaleBeginAtZero: boolean;
-
-        // String - Scale label font declaration for the scale label
-        scaleFontFamily: string;
-
-        // Number - Scale label font size in pixels
-        scaleFontSize: number;
-
-        // String - Scale label font weight style
-        scaleFontStyle: string;
-
-        // String - Scale label font colour
-        scaleFontColor: string;
-
-        // Boolean - whether or not the chart should be responsive and resize when the browser does.
-        responsive: boolean;
-
-        // Boolean - whether to maintain the starting aspect ratio or not when responsive, if set to false, will take up entire container
-        maintainAspectRatio: boolean;
-
-        // Boolean - Determines whether to draw tooltips on the canvas or not - attaches events to touchmove & mousemove
-        showTooltips: boolean;
-
-        // Boolean - Determines whether to draw built-in tooltip or call custom tooltip function
-        customTooltips: boolean;
-
-        // Array - Array of string names to attach tooltip events
-        tooltipEvents: string[];
-
-        // String - Tooltip background colour
-        tooltipFillColor: string;
-
-        // String - Tooltip label font declaration for the scale label
-        tooltipFontFamily: string;
-
-        // Number - Tooltip label font size in pixels
-        tooltipFontSize: number;
-
-        // String - Tooltip font weight style
-        tooltipFontStyle: string;
-
-        // String - Tooltip label font colour
-        tooltipFontColor: string;
-
-        // String - Tooltip title font declaration for the scale label
-        tooltipTitleFontFamily: string;
-
-        // Number - Tooltip title font size in pixels
-        tooltipTitleFontSize: number;
-
-        // String - Tooltip title font weight style
-        tooltipTitleFontStyle: string;
-
-        // String - Tooltip title font colour
-        tooltipTitleFontColor: string;
-
-        // Number - pixel width of padding around tooltip text
-        tooltipYPadding: number;
-
-        // Number - pixel width of padding around tooltip text
-        tooltipXPadding: number;
-
-        // Number - Size of the caret on the tooltip
-        tooltipCaretSize: number;
-
-        // Number - Pixel radius of the tooltip border
-        tooltipCornerRadius: number;
-
-        // Number - Pixel offset from point x to tooltip edge
-        tooltipXOffset: number;
-
-        // String - Template string for single tooltips
-        tooltipTemplate: string;
-
-        // String - Template string for single tooltips
-        multiTooltipTemplate: string;
-
-        // String - Colour behind the legend colour block
-        multiTooltipKeyBackground: string;
-
-        // Function - Will fire on animation progression.
-        onAnimationProgress: () => void;
-
-        // Function - Will fire on animation completion.
-        onAnimationComplete: () => void;
-    }
-
 	export class Element implements ICloneable {
 
 		constructor(ctx: CanvasRenderingContext2D, options: any) {
+			this.ctx = ctx;
 			this.label = options.label;
+			this.strokeColor = options.strokeColor;
+			this.fillColor = options.fillColor;
 			this.initialize.apply(this, arguments);
 			this.save();
 		}
@@ -818,7 +706,7 @@ module ChartJs {
 			return this;
 		}
 
-		update(newOptions: Object) {
+		update(newOptions?: Object) {
 			for (var prop in newOptions) {
 				if (newOptions.hasOwnProperty(prop)) {
 					this._saved[prop] = this[prop];
@@ -841,7 +729,7 @@ module ChartJs {
 			return false;
 		}
 
-		draw() {
+		draw(easingDecimal?: number) {
 			
 		}
 
@@ -862,7 +750,7 @@ module ChartJs {
 		strokeWidth: number;
 		fillColor: string;
 		showStroke: boolean;
-		chart: Chart;
+		chart: ChartBase;
 		display: boolean;
 
 		tooltipPosition(): Point {
@@ -1228,8 +1116,49 @@ module ChartJs {
 		legendColors: Color[];
 	}
 
+	export interface IScaleOptions {
+		templateString: string;
+		height: number;
+		width: number;
+		textColor: string;
+		fontSize: number;
+		fontStyle: string;
+		fontFamily: string;
+		valuesCount: number;
+		xLabels: string[];
+		font: string;
+		lineWidth: number;
+		lineColor: string;
+		showHorizontalLines: boolean;
+		showVerticalLines: boolean;
+		gridLineWidth: number;
+		gridLineColor: string;
+		padding: number;
+		showLabels: boolean;
+		display: boolean;
+	}
+
 	export class Scale extends Element {
-		constructor(ctx: CanvasRenderingContext2D, options: Object) {
+		constructor(ctx: CanvasRenderingContext2D, options: IScaleOptions) {
+			this.templateString = options.templateString;
+			this.height = options.height;
+			this.width = options.width;
+			this.textColor = options.textColor;
+			this.fontSize = options.fontSize;
+			this.fontStyle = options.fontStyle;
+			this.fontFamily = options.fontFamily;
+			this.xLabels = options.xLabels;
+			this.font = options.font;
+			this.lineWidth = options.lineWidth;
+			this.lineColor = options.lineColor;
+			this.showHorizontalLines = options.showHorizontalLines;
+			this.showVerticalLines = options.showVerticalLines;
+			this.gridLineWidth = options.gridLineWidth;
+			this.gridLineColor = options.gridLineColor;
+			this.padding = options.padding;
+			this.showLabels = options.showLabels;
+			this.display = options.display;
+			this.valuesCount = options.valuesCount;
 			super(ctx, options);
 		}
 
@@ -1387,13 +1316,13 @@ module ChartJs {
 			return Math.round(valueOffset);
 		}
 
-		update(newOptions: Object) {
+		update(newOptions?: Object) {
 			super.update(newOptions);
 			this.fit();
 			return this;
 		}
 
-		draw() {
+		draw(easingDecimal?: number) {
 			var ctx = this.ctx,
 				yLabelGap = (this.endPoint - this.startPoint) / this.steps,
 				xStart = Math.round(this.xScalePaddingLeft);
@@ -1507,6 +1436,8 @@ module ChartJs {
 		}
 
 		fontSize: number;
+		fontFamily: string;
+		fontStyle: string;
 		font: string;
 		yLabels: string[];
 		yLabelWidth: number;
@@ -1841,10 +1772,139 @@ module ChartJs {
 
 	export class Dataset {
 		elements: Element[];
+		color: Color;
+		highlightColor: Color;
 	}
 
-    export class Chart {
-	    private options;
+	export interface IChartOptions {
+        // Boolean - Whether to animate the chart
+        animation?: boolean;
+
+        // Number - Number of animation steps
+        animationSteps?: number;
+
+        // String - Animation easing effect
+        animationEasing?: string;
+
+        // Boolean - If we should show the scale at all
+        showScale?: boolean;
+
+        // Boolean - If we want to override with a hard coded scale
+        scaleOverride?: boolean;
+
+        // ** Required if scaleOverride is true **
+        // Number - The number of steps in a hard coded scale
+        scaleSteps?: number;
+        // Number - The value jump in the hard coded scale
+        scaleStepWidth?: number;
+
+        // Number - The scale starting value
+        scaleStartValue?: number;
+
+        // String - Colour of the scale line
+        scaleLineColor?: string;
+
+        // Number - Pixel width of the scale line
+        scaleLineWidth?: number;
+
+        // Boolean - Whether to show labels on the scale
+        scaleShowLabels?: boolean;
+
+        // Interpolated JS string - can access value
+        scaleLabel?: string;
+
+        // Boolean - Whether the scale should stick to integers, and not show any floats even if drawing space is there
+        scaleIntegersOnly?: boolean;
+
+        // Boolean - Whether the scale should start at zero, or an order of magnitude down from the lowest value
+        scaleBeginAtZero?: boolean;
+
+        // String - Scale label font declaration for the scale label
+        scaleFontFamily?: string;
+
+        // Number - Scale label font size in pixels
+        scaleFontSize?: number;
+
+        // String - Scale label font weight style
+        scaleFontStyle?: string;
+
+        // String - Scale label font colour
+        scaleFontColor?: string;
+
+        // Boolean - whether or not the chart should be responsive and resize when the browser does.
+        responsive?: boolean;
+
+        // Boolean - whether to maintain the starting aspect ratio or not when responsive, if set to false, will take up entire container
+        maintainAspectRatio?: boolean;
+
+        // Boolean - Determines whether to draw tooltips on the canvas or not - attaches events to touchmove & mousemove
+        showTooltips?: boolean;
+
+        // Array - Array of string names to attach tooltip events
+        tooltipEvents?: string[];
+
+        // String - Tooltip background colour
+        tooltipFillColor?: string;
+
+        // String - Tooltip label font declaration for the scale label
+        tooltipFontFamily?: string;
+
+        // Number - Tooltip label font size in pixels
+        tooltipFontSize?: number;
+
+        // String - Tooltip font weight style
+        tooltipFontStyle?: string;
+
+        // String - Tooltip label font colour
+        tooltipFontColor?: string;
+
+        // String - Tooltip title font declaration for the scale label
+        tooltipTitleFontFamily?: string;
+
+        // Number - Tooltip title font size in pixels
+        tooltipTitleFontSize?: number;
+
+        // String - Tooltip title font weight style
+        tooltipTitleFontStyle?: string;
+
+        // String - Tooltip title font colour
+        tooltipTitleFontColor?: string;
+
+        // Number - pixel width of padding around tooltip text
+        tooltipYPadding?: number;
+
+        // Number - pixel width of padding around tooltip text
+        tooltipXPadding?: number;
+
+        // Number - Size of the caret on the tooltip
+        tooltipCaretSize?: number;
+
+        // Number - Pixel radius of the tooltip border
+        tooltipCornerRadius?: number;
+
+        // Number - Pixel offset from point x to tooltip edge
+        tooltipXOffset?: number;
+
+        // String - Template string for single tooltips
+        tooltipTemplate?: string;
+
+        // String - Template string for single tooltips
+        multiTooltipTemplate?: string;
+
+        // String - Colour behind the legend colour block
+        multiTooltipKeyBackground?: string;
+
+        // Function - Will fire on animation progression.
+        onAnimationProgress?: () => void;
+
+        // Function - Will fire on animation completion.
+        onAnimationComplete?: () => void;
+
+		//String - A legend template
+		legendTemplate?: string;
+	}
+
+	export class ChartBase {
 	    private data;
 	    private id: string;
 	    ctx: CanvasRenderingContext2D;
@@ -1854,10 +1914,10 @@ module ChartJs {
         aspectRatio: number;
         animationFrame: number;
         events: IDictionary<() => void>;
-	    private activeElements: Element[];
-	    private datasets: Dataset[];
+	    activeElements: Element[];
+	    datasets: Dataset[];
 
-        constructor(context: CanvasRenderingContext2D, data: any, options: any) {
+        constructor(context: CanvasRenderingContext2D, data: any) {
 	        this.canvas = context.canvas;
             this.ctx = context;
             this.width = this.canvas.width;
@@ -1866,35 +1926,36 @@ module ChartJs {
 
 	        this.id = uid();
 	        this.data = data;
-	        this.options = options;
 	        Chart.instances[this.id] = this;
 
-			if (options.responsive) {
+
+
+			if (this.getChartOptions().responsive) {
 				this.resize();
 			}
-	        this.initialize.call(this, data);
+	        this.initialize(data);
             retinaScale(this);
         }
 
-		initialize(data?: any): Chart {
+		initialize(data?: any): ChartBase {
 			return this;
 		}
 
-		clear(): Chart {
+		clear(): ChartBase {
 			clear(this);
 			return this;
 		}
 
-		stop(): Chart {
+		stop(): ChartBase {
 			cancelAnimFrame(this.animationFrame);
 			return this;
 		}
 
-		resize(callback?: Function, ...args: any[]): Chart {
+		resize(callback?: Function, ...args: any[]): ChartBase {
 			this.stop();
 			var canvas = this.canvas,
 				newWidth = getMaximumWidth(canvas),
-				newHeight = this.options.maintainAspectRatio ? newWidth / this.aspectRatio : getMaximumHeight(canvas);
+				newHeight = this.getChartOptions().maintainAspectRatio ? newWidth / this.aspectRatio : getMaximumHeight(canvas);
 
 			canvas.width = this.width = newWidth;
 			canvas.height = this.height = newHeight;
@@ -1913,23 +1974,24 @@ module ChartJs {
 			if (reflow) {
 				this.reflow();
 			}
-			if (this.options.animation && !reflow) {
+			var options = this.getChartOptions();
+			if (options.animation && !reflow) {
 				animationLoop(
 					this.draw,
-					this.options.animationSteps,
-					this.options.animationEasing,
-					this.options.onAnimationProgress,
-					this.options.onAnimationComplete,
+					options.animationSteps,
+					options.animationEasing,
+					options.onAnimationProgress,
+					options.onAnimationComplete,
 					this);
 			} else {
-				this.draw();
-				this.options.onAnimationComplete.call(this);
+				this.draw(1);
+				options.onAnimationComplete.call(this);
 			}
 			return this;
 		}
 
 		generateLegend() {
-			return template(this.options.legendTemplate, this);
+			return template(this.getChartOptions().legendTemplate, this);
 		}
 
 		destroy() {
@@ -1951,7 +2013,7 @@ module ChartJs {
 			delete Chart.instances[this.id];
 		}
 
-		showTooltip(chartElements: Element[], forceRedraw: boolean) {
+		showTooltip(chartElements: Element[], forceRedraw?: boolean) {
 			if (!this.activeElements) this.activeElements = [];
 
 			var isChanged = ((elements: Element[]) => {
@@ -1973,10 +2035,8 @@ module ChartJs {
 			} else {
 				this.activeElements = chartElements;
 			}
-			this.draw();
-			if (this.options.customTooltips) {
-				this.options.customTooltips(false);
-			}
+			this.draw(1);
+			var options = this.getChartOptions();
 			if (chartElements.length > 0) {
 				if (this.datasets && this.datasets.length) {
 					var dataArray: any[],
@@ -2007,7 +2067,7 @@ module ChartJs {
 								xPositions.push(element.x);
 								yPositions.push(element.y);
 
-								tooltipLabels.push(template(this.options.multiTooltipTemplate, element));
+								tooltipLabels.push(template(options.multiTooltipTemplate, element));
 								tooltipColors.push({
 									fill: element.fillColor,
 									stroke: element.strokeColor
@@ -2029,25 +2089,24 @@ module ChartJs {
 					new MultiToolTip(this.ctx, {
 						x: medianPosition.x,
 						y: medianPosition.y,
-						xPadding: this.options.tooltipXPadding,
-						yPadding: this.options.tooltipYPadding,
-						xOffset: this.options.tooltipXOffset,
-						fillColor: this.options.tooltipFillColor,
-						textColor: this.options.tooltipFontColor,
-						fontFamily: this.options.tooltipFontFamily,
-						fontStyle: this.options.tooltipFontStyle,
-						fontSize: this.options.tooltipFontSize,
-						titleTextColor: this.options.tooltipTitleFontColor,
-						titleFontFamily: this.options.tooltipTitleFontFamily,
-						titleFontStyle: this.options.tooltipTitleFontStyle,
-						titleFontSize: this.options.tooltipTitleFontSize,
-						cornerRadius: this.options.tooltipCornerRadius,
+						xPadding: options.tooltipXPadding,
+						yPadding: options.tooltipYPadding,
+						xOffset: options.tooltipXOffset,
+						fillColor: options.tooltipFillColor,
+						textColor: options.tooltipFontColor,
+						fontFamily: options.tooltipFontFamily,
+						fontStyle: options.tooltipFontStyle,
+						fontSize: options.tooltipFontSize,
+						titleTextColor: options.tooltipTitleFontColor,
+						titleFontFamily: options.tooltipTitleFontFamily,
+						titleFontStyle: options.tooltipTitleFontStyle,
+						titleFontSize: options.tooltipTitleFontSize,
+						cornerRadius: options.tooltipCornerRadius,
 						labels: tooltipLabels,
 						legendColors: tooltipColors,
-						legendColorBackground: this.options.multiTooltipKeyBackground,
+						legendColorBackground: options.multiTooltipKeyBackground,
 						title: chartElements[0].label,
-						chart: this,
-						custom: this.options.customTooltips
+						chart: this
 					}).draw();
 				} else {
 					each(chartElements, (element: Element) => {
@@ -2055,18 +2114,17 @@ module ChartJs {
 						new Tooltip(this.ctx, {
 							x: Math.round(tooltipPosition.x),
 							y: Math.round(tooltipPosition.y),
-							xPadding: this.options.tooltipXPadding,
-							yPadding: this.options.tooltipYPadding,
-							fillColor: this.options.tooltipFillColor,
-							textColor: this.options.tooltipFontColor,
-							fontFamily: this.options.tooltipFontFamily,
-							fontStyle: this.options.tooltipFontStyle,
-							fontSize: this.options.tooltipFontSize,
-							caretHeight: this.options.tooltipCaretSize,
-							cornerRadius: this.options.tooltipCornerRadius,
-							text: template(this.options.tooltipTemplate, Element),
-							chart: this,
-							custom: this.options.customTooltips
+							xPadding: options.tooltipXPadding,
+							yPadding: options.tooltipYPadding,
+							fillColor: options.tooltipFillColor,
+							textColor: options.tooltipFontColor,
+							fontFamily: options.tooltipFontFamily,
+							fontStyle: options.tooltipFontStyle,
+							fontSize: options.tooltipFontSize,
+							caretHeight: options.tooltipCaretSize,
+							cornerRadius: options.tooltipCornerRadius,
+							text: template(options.tooltipTemplate, Element),
+							chart: this
 						}).draw();
 					});
 				}
@@ -2074,7 +2132,7 @@ module ChartJs {
 			return this;
 		}
 
-		draw() {
+		draw(ease: number) {
 			
 		}
 
@@ -2086,12 +2144,28 @@ module ChartJs {
 			}
 		}
 
-        public static defaults: IDictionary<ChartSettings> = {};
-		private static instances: IDictionary<Chart> = {};
+		getChartOptions(): IChartOptions {
+			throw new Error("Not Implemented");
+		}
+
+        public static globalDefaults: IChartOptions;
+		private static instances: IDictionary<ChartBase> = {};
+	}
+
+    export class Chart<TOptions extends IChartOptions> extends ChartBase {
+	    constructor(context: CanvasRenderingContext2D, data: any, options: TOptions, defaults: any) {
+	        this.options = <TOptions>merge(options, merge(defaults, Chart.globalDefaults));
+		    super(context, data);
+	    }
+
+	    options: TOptions;
+		getChartOptions(): IChartOptions {
+			return this.options;
+		}
     }
 
 
-    Chart.defaults["global"] = {
+    Chart.globalDefaults = {
         animation: true,
         animationSteps: 60,
         animationEasing: "easeOutQuart",
@@ -2133,7 +2207,8 @@ module ChartJs {
         multiTooltipTemplate: "<%= value %>",
         multiTooltipKeyBackground: '#fff',
         onAnimationProgress() { },
-        onAnimationComplete() { }
+        onAnimationComplete() { },
+		legendTemplate : "<ul class=\"<%=name.toLowerCase()%>-legend\"><% for (var i=0; i<datasets.length; i++){%><li><span style=\"background-color:<%=datasets[i].fillColor%>\"></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>"
     }
 }
 
