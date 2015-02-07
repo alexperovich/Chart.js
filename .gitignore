@@ -20,3 +20,5 @@ bin
 packages
 /src/Chart.Helpers.js
 /src/Chart.Helpers.js.map
+/src/rgbcolor.js
+/src/rgbcolor.js.map
