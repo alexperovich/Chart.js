@@ -13,3 +13,8 @@ bin
 *.user
 *.tmp
 *.suo
+/src/Chart.Bar.js.map
+/src/Chart.Bar.js
+/src/Chart.Core.js.map
+/src/Chart.Core.js
+packages
